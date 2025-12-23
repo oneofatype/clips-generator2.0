@@ -25,10 +25,11 @@ load_dotenv()
 class HookResult:
     """Result from hook generation pipeline."""
     hook_text: str
-    subject_word: Optional[str]  # Word to highlight in YELLOW
-    object_word: Optional[str]   # Word to highlight in PURPLE
-    scores: Dict[str, float]     # Evaluation scores
-    reasoning: str               # Why this hook was selected
+    subject_words: Optional[str]  # Word(s) to highlight in YELLOW (can be multiple consecutive words)
+    object_words: Optional[str]   # Word(s) to highlight in PURPLE (can be multiple consecutive words)
+    scores: Dict[str, float]      # Evaluation scores
+    reasoning: str                # Why this hook was selected
+    prefix: str = ""              # Prefix to add before the hook (e.g., "$8B Fintech CEO: ")
 
 
 class HookGeneratorCrew:
@@ -77,7 +78,8 @@ and statements that demand a response. You specialize in hooks that are:
 Your hooks are always under 12 words and designed to maximize replies and engagement.""",
             llm="gemini/gemini-2.5-pro",
             verbose=True,
-            allow_delegation=False
+            allow_delegation=False,
+            temperature=0.7
         )
     
     def _create_evaluator_agent(self):
@@ -97,7 +99,8 @@ KEY OBJECT (what's being said about it - highlighted PURPLE) in each hook
 to maximize visual impact and comprehension.""",
             llm="gemini/gemini-3-pro-preview",
             verbose=True,
-            allow_delegation=False
+            allow_delegation=False,
+            temperature=0
         )
     
     def _create_generation_task(self, agent, transcript: str):
@@ -146,8 +149,12 @@ Score each hook on a scale of 1-10 for:
 Then select the BEST hook (highest combined score with defensibility >= 7).
 
 For the winning hook, identify:
-- SUBJECT: The main topic word (to highlight in YELLOW)
-- OBJECT: The key descriptor/action word (to highlight in PURPLE)
+- SUBJECT_WORDS: The main topic - can be ONE OR MORE CONSECUTIVE WORDS (to highlight in YELLOW)
+  Example: for "Why qualified employees leave first", subject could be "qualified employees" (2 words together)
+- OBJECT_WORDS: The key descriptor/action - can be ONE OR MORE CONSECUTIVE WORDS (to highlight in PURPLE)
+  Example: for "Why qualified employees leave first", object could be "leave first" (2 words together)
+
+IMPORTANT: Choose the most impactful CONSECUTIVE words to highlight together. Do NOT skip words in between.
 
 OUTPUT YOUR RESPONSE AS VALID JSON with this exact structure:
 {
@@ -158,8 +165,8 @@ OUTPUT YOUR RESPONSE AS VALID JSON with this exact structure:
     "winner": {
         "number": 1,
         "hook": "the winning hook text",
-        "subject_word": "TOPIC",
-        "object_word": "DESCRIPTOR",
+        "subject_words": "TOPIC WORDS",
+        "object_words": "DESCRIPTOR WORDS",
         "reasoning": "Why this hook will perform best"
     }
 }
@@ -171,41 +178,216 @@ and the winning hook with SUBJECT and OBJECT words identified.""",
             context=[generation_task]
         )
     
-    def generate_hook(self, transcript: str) -> HookResult:
+    def generate_hook(self, transcript: str, use_discord: bool = True, discord_timeout: int = 1200) -> HookResult:
         """
         Generate the best hook for a given transcript.
         
+        Flow:
+        1. Generate 8 hook variations using AI
+        2. If use_discord=True, post hooks to Discord and wait for user selection
+        3. If user selects a hook or provides custom one, use that
+        4. If timeout or use_discord=False, use AI evaluator to select best hook
+        
         Args:
             transcript: The podcast transcript text
+            use_discord: Whether to use Discord for hook selection (default True)
+            discord_timeout: Seconds to wait for Discord response (default 1200 = 20 min)
             
         Returns:
             HookResult with the winning hook and highlights
         """
         print("[HOOK] Initializing CrewAI agents...")
         
-        # Create agents
+        # Create generator agent
         generator = self._create_generator_agent()
-        evaluator = self._create_evaluator_agent()
         
-        # Create tasks
+        # Create generation task
         generation_task = self._create_generation_task(generator, transcript)
-        evaluation_task = self._create_evaluation_task(evaluator, generation_task)
         
-        # Create crew
-        crew = self.Crew(
-            agents=[generator, evaluator],
-            tasks=[generation_task, evaluation_task],
+        # Create crew for JUST generation (not evaluation yet)
+        generation_crew = self.Crew(
+            agents=[generator],
+            tasks=[generation_task],
             process=self.Process.sequential,
             verbose=True
         )
         
-        print("[HOOK] Running hook generation crew...")
+        print("[HOOK] Running hook generation...")
         
-        # Execute crew
-        result = crew.kickoff()
+        # Execute generation
+        generation_result = generation_crew.kickoff()
+        raw_hooks_output = str(generation_result)
+        
+        print(f"[HOOK] Generated hooks:\n{raw_hooks_output}")
+        
+        # Parse the generated hooks
+        from hook_discord_selector import parse_hooks_from_generator_output, run_hook_selector_bot
+        hooks = parse_hooks_from_generator_output(raw_hooks_output)
+        
+        if not hooks:
+            print("[HOOK] Failed to parse hooks, falling back to AI evaluation")
+            use_discord = False
+        else:
+            print(f"[HOOK] Parsed {len(hooks)} hooks successfully")
+        
+        # Try Discord selection if enabled
+        selected_hook_text = None
+        if use_discord and hooks:
+            try:
+                print(f"[HOOK] Posting hooks to Discord (timeout: {discord_timeout}s)...")
+                discord_result = run_hook_selector_bot(hooks, timeout_seconds=discord_timeout, transcript=transcript)
+                
+                if not discord_result.timed_out and discord_result.selected_hook:
+                    selected_hook_text = discord_result.selected_hook
+                    print(f"[HOOK] User selected hook: {selected_hook_text}")
+                    
+                    if discord_result.is_custom:
+                        print("[HOOK] Using custom hook from user")
+                        # For custom hooks, we need to identify subject/object words
+                        # Use the evaluator for just this task
+                        return self._evaluate_single_hook(selected_hook_text)
+                    else:
+                        # User selected a numbered hook, now evaluate just that one
+                        print(f"[HOOK] User selected hook #{discord_result.hook_number}")
+                        return self._evaluate_single_hook(selected_hook_text)
+                else:
+                    print("[HOOK] Discord timed out, falling back to AI evaluation")
+            except Exception as e:
+                print(f"[HOOK] Discord error: {e}, falling back to AI evaluation")
+        
+        # Fall back to AI evaluation
+        print("[HOOK] Using AI evaluator to select best hook...")
+        
+        # Create evaluator agent
+        evaluator = self._create_evaluator_agent()
+        
+        # Create evaluation task with the generated hooks
+        evaluation_task = self._create_evaluation_task_from_hooks(evaluator, raw_hooks_output)
+        
+        # Create crew for evaluation
+        evaluation_crew = self.Crew(
+            agents=[evaluator],
+            tasks=[evaluation_task],
+            process=self.Process.sequential,
+            verbose=True
+        )
+        
+        print("[HOOK] Running hook evaluation...")
+        result = evaluation_crew.kickoff()
         
         # Parse the result
         return self._parse_result(result)
+    
+    def _evaluate_single_hook(self, hook_text: str) -> HookResult:
+        """
+        Evaluate a single hook to identify subject/object words.
+        
+        Args:
+            hook_text: The hook text to evaluate
+            
+        Returns:
+            HookResult with subject/object words identified
+        """
+        evaluator = self._create_evaluator_agent()
+        
+        task = self.Task(
+            description=f"""For this hook, identify the key words to highlight:
+
+HOOK: "{hook_text}"
+
+Identify:
+- SUBJECT_WORDS: The main topic - can be ONE OR MORE CONSECUTIVE WORDS (to highlight in YELLOW)
+- OBJECT_WORDS: The key descriptor/action - can be ONE OR MORE CONSECUTIVE WORDS (to highlight in PURPLE)
+
+OUTPUT YOUR RESPONSE AS VALID JSON with this exact structure:
+{{
+    "hook": "{hook_text}",
+    "subject_words": "TOPIC WORDS",
+    "object_words": "DESCRIPTOR WORDS",
+    "reasoning": "Why these words were chosen for highlighting"
+}}
+
+IMPORTANT: Return ONLY the JSON object, no markdown formatting, no extra text.""",
+            expected_output="A JSON object with the hook and highlighted words identified.",
+            agent=evaluator
+        )
+        
+        crew = self.Crew(
+            agents=[evaluator],
+            tasks=[task],
+            process=self.Process.sequential,
+            verbose=True
+        )
+        
+        result = crew.kickoff()
+        raw_output = str(result)
+        
+        try:
+            json_start = raw_output.find('{')
+            json_end = raw_output.rfind('}') + 1
+            if json_start != -1 and json_end > json_start:
+                json_str = raw_output[json_start:json_end]
+                data = json.loads(json_str)
+                return HookResult(
+                    hook_text=data.get('hook', hook_text),
+                    subject_words=data.get('subject_words'),
+                    object_words=data.get('object_words'),
+                    scores={},
+                    reasoning=data.get('reasoning', ''),
+                    prefix=""
+                )
+        except Exception as e:
+            print(f"[HOOK] Error parsing single hook evaluation: {e}")
+        
+        # Fallback
+        return HookResult(
+            hook_text=hook_text,
+            subject_words=None,
+            object_words=None,
+            scores={},
+            reasoning="Manual selection",
+            prefix=""
+        )
+    
+    def _create_evaluation_task_from_hooks(self, agent, hooks_text: str):
+        """Create evaluation task from already-generated hooks text."""
+        return self.Task(
+            description=f"""Evaluate these hooks that were already generated:
+
+{hooks_text}
+
+Score each hook on a scale of 1-10 for:
+1. EMOTIONAL_CHARGE: How strongly will this trigger an emotional response?
+2. CONTROVERSY_POTENTIAL: How likely to generate debate/arguments?
+3. NEGATIVITY_BIAS: How effectively does it use negativity to drive engagement?
+4. DEFENSIBILITY: Can you defend posting this? (10 = perfectly defensible, 1 = likely to get banned)
+
+Then select the BEST hook (highest combined score with defensibility >= 7).
+
+For the winning hook, identify:
+- SUBJECT_WORDS: The main topic - can be ONE OR MORE CONSECUTIVE WORDS (to highlight in YELLOW)
+- OBJECT_WORDS: The key descriptor/action - can be ONE OR MORE CONSECUTIVE WORDS (to highlight in PURPLE)
+
+OUTPUT YOUR RESPONSE AS VALID JSON with this exact structure:
+{{
+    "hooks_evaluated": [
+        {{"number": 1, "hook": "hook text", "emotional": 8, "controversy": 7, "negativity": 6, "defensibility": 9, "total": 30}},
+        ... for all 8 hooks
+    ],
+    "winner": {{
+        "number": 1,
+        "hook": "the winning hook text",
+        "subject_words": "TOPIC WORDS",
+        "object_words": "DESCRIPTOR WORDS",
+        "reasoning": "Why this hook will perform best"
+    }}
+}}
+
+IMPORTANT: Return ONLY the JSON object, no markdown formatting, no extra text.""",
+            expected_output="""A JSON object containing evaluation scores for all hooks
+and the winning hook with SUBJECT and OBJECT words identified.""",
+            agent=agent
+        )
     
     def _parse_result(self, crew_result) -> HookResult:
         """Parse the crew result into a HookResult object."""
@@ -238,39 +420,43 @@ and the winning hook with SUBJECT and OBJECT words identified.""",
                 
                 return HookResult(
                     hook_text=winner.get('hook', 'Could not generate hook'),
-                    subject_word=winner.get('subject_word'),
-                    object_word=winner.get('object_word'),
+                    subject_words=winner.get('subject_words') or winner.get('subject_word'),  # Backward compat
+                    object_words=winner.get('object_words') or winner.get('object_word'),    # Backward compat
                     scores=scores,
-                    reasoning=winner.get('reasoning', '')
+                    reasoning=winner.get('reasoning', ''),
+                    prefix=""  # Default empty, can be set by caller
                 )
             else:
                 # Fallback: just use the raw output as hook text
                 print("[WARNING] Could not parse JSON from crew result")
                 return HookResult(
                     hook_text=raw_output[:100],  # First 100 chars
-                    subject_word=None,
-                    object_word=None,
+                    subject_words=None,
+                    object_words=None,
                     scores={},
-                    reasoning="Parsing failed"
+                    reasoning="Parsing failed",
+                    prefix=""
                 )
                 
         except json.JSONDecodeError as e:
             print(f"[WARNING] JSON parse error: {e}")
             return HookResult(
                 hook_text="Failed to generate hook",
-                subject_word=None,
-                object_word=None,
+                subject_words=None,
+                object_words=None,
                 scores={},
-                reasoning=str(e)
+                reasoning=str(e),
+                prefix=""
             )
         except Exception as e:
             print(f"[WARNING] Error parsing result: {e}")
             return HookResult(
                 hook_text="Failed to generate hook",
-                subject_word=None,
-                object_word=None,
+                subject_words=None,
+                object_words=None,
                 scores={},
-                reasoning=str(e)
+                reasoning=str(e),
+                prefix=""
             )
 
 
@@ -316,22 +502,62 @@ class HookRenderer:
         except:
             font = self.ImageFont.load_default()
         
-        hook_text = hook_result.hook_text.upper()  # Uppercase for impact
-        subject = hook_result.subject_word.upper() if hook_result.subject_word else None
-        obj = hook_result.object_word.upper() if hook_result.object_word else None
+        # Add prefix if present
+        full_hook_text = ""
+        if hook_result.prefix:
+            full_hook_text = hook_result.prefix + hook_result.hook_text
+        else:
+            full_hook_text = hook_result.hook_text
+        
+        hook_text = full_hook_text.upper()  # Uppercase for impact
+        
+        # Handle consecutive word highlighting
+        subject_words = hook_result.subject_words.upper().split() if hook_result.subject_words else []
+        object_words = hook_result.object_words.upper().split() if hook_result.object_words else []
         
         # Split text into words with colors
         words = hook_text.split()
         word_colors = []
         
-        for word in words:
+        i = 0
+        while i < len(words):
+            word = words[i]
             clean_word = word.strip('.,!?;:\'"')
-            if subject and clean_word == subject:
-                word_colors.append((word, self.subject_color))
-            elif obj and clean_word == obj:
-                word_colors.append((word, self.object_color))
-            else:
+            matched = False
+            
+            # Check for subject phrase match (consecutive words)
+            if subject_words and i + len(subject_words) <= len(words):
+                phrase_match = True
+                for j, subj_word in enumerate(subject_words):
+                    check_word = words[i + j].strip('.,!?;:\'"')
+                    if check_word != subj_word:
+                        phrase_match = False
+                        break
+                if phrase_match:
+                    # Add all words in the phrase with subject color
+                    for j in range(len(subject_words)):
+                        word_colors.append((words[i + j], self.subject_color))
+                    i += len(subject_words)
+                    matched = True
+            
+            # Check for object phrase match (consecutive words)
+            if not matched and object_words and i + len(object_words) <= len(words):
+                phrase_match = True
+                for j, obj_word in enumerate(object_words):
+                    check_word = words[i + j].strip('.,!?;:\'"')
+                    if check_word != obj_word:
+                        phrase_match = False
+                        break
+                if phrase_match:
+                    # Add all words in the phrase with object color
+                    for j in range(len(object_words)):
+                        word_colors.append((words[i + j], self.object_color))
+                    i += len(object_words)
+                    matched = True
+            
+            if not matched:
                 word_colors.append((word, self.default_color))
+                i += 1
         
         # Calculate sizes
         temp_img = self.Image.new('RGBA', (1, 1))
@@ -469,12 +695,17 @@ if __name__ == "__main__":
         generator = HookGeneratorCrew()
         result = generator.generate_hook(test_transcript)
         
+        # Test with prefix
+        result.prefix = "$8B Fintech CEO: "
+        
         print("\n" + "=" * 60)
         print("RESULT:")
         print("=" * 60)
         print(f"Hook: {result.hook_text}")
-        print(f"Subject (Yellow): {result.subject_word}")
-        print(f"Object (Purple): {result.object_word}")
+        print(f"Prefix: {result.prefix}")
+        print(f"Full Hook: {result.prefix + result.hook_text}")
+        print(f"Subject (Yellow): {result.subject_words}")
+        print(f"Object (Purple): {result.object_words}")
         print(f"Scores: {result.scores}")
         print(f"Reasoning: {result.reasoning}")
         

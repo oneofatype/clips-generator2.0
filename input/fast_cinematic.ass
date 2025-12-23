@@ -1,0 +1,21 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,120,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,10,10,10,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.99,0:00:04.99,Default,,0,0,0,,{\move(520.0,694.0,520.0,540.0,0,300)\fad(300,0)\blur20\t(0,300,\blur0)}F
+Dialogue: 0,0:00:01.04,0:00:05.04,Default,,0,0,0,,{\move(600.0,690.0,600.0,540.0,0,300)\fad(300,0)\blur20\t(0,300,\blur0)}A
+Dialogue: 0,0:00:01.10,0:00:05.10,Default,,0,0,0,,{\move(680.0,693.0,680.0,540.0,0,300)\fad(300,0)\blur20\t(0,300,\blur0)}S
+Dialogue: 0,0:00:01.14,0:00:05.14,Default,,0,0,0,,{\move(760.0,678.0,760.0,540.0,0,300)\fad(300,0)\blur20\t(0,300,\blur0)}T
+Dialogue: 0,0:00:01.25,0:00:05.25,Default,,0,0,0,,{\move(920.0,685.0,920.0,540.0,0,300)\fad(300,0)\blur20\t(0,300,\blur0)}M
+Dialogue: 0,0:00:01.30,0:00:05.30,Default,,0,0,0,,{\move(1000.0,674.0,1000.0,540.0,0,300)\fad(300,0)\blur20\t(0,300,\blur0)}O
+Dialogue: 0,0:00:01.34,0:00:05.34,Default,,0,0,0,,{\move(1080.0,678.0,1080.0,540.0,0,300)\fad(300,0)\blur20\t(0,300,\blur0)}T
+Dialogue: 0,0:00:01.40,0:00:05.40,Default,,0,0,0,,{\move(1160.0,676.0,1160.0,540.0,0,300)\fad(300,0)\blur20\t(0,300,\blur0)}I
+Dialogue: 0,0:00:01.44,0:00:05.44,Default,,0,0,0,,{\move(1240.0,703.0,1240.0,540.0,0,300)\fad(300,0)\blur20\t(0,300,\blur0)}O
+Dialogue: 0,0:00:01.49,0:00:05.49,Default,,0,0,0,,{\move(1320.0,705.0,1320.0,540.0,0,300)\fad(300,0)\blur20\t(0,300,\blur0)}N

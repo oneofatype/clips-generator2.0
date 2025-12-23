@@ -1,0 +1,965 @@
+{
+  "text": "The first four or five years. We hire a lot of people that, with a lot of great experiences from Citibank, they built a Swift network before, you know, they know the thing. Then they join. They telling me, like, you guys know nothing. What you're going to do doesn't work. We need to, you know, do blah, blah, blah. And none of those people worked. None of the people think they know how to build a startup that worked. And ultimately, it's not about experience, it's about the competency. Right. It's about the curiosity, the determination, about the resilience, and about the belief in the vision, about the passion. And I think we should just have hired those curious, determined, optimistic people from early on, but we didn't. So we had to fire all of them.",
+  "words": [
+    {
+      "text": "The",
+      "start": 80,
+      "end": 200,
+      "confidence": 0.99853516,
+      "highlight": false
+    },
+    {
+      "text": "first",
+      "start": 200,
+      "end": 440,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "four",
+      "start": 440,
+      "end": 640,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "or",
+      "start": 640,
+      "end": 760,
+      "confidence": 0.59228516,
+      "highlight": false
+    },
+    {
+      "text": "five",
+      "start": 760,
+      "end": 960,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "years",
+      "start": 960,
+      "end": 1200,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "We",
+      "start": 1200,
+      "end": 1400,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "hire",
+      "start": 1400,
+      "end": 1640,
+      "confidence": 0.8178711,
+      "highlight": false
+    },
+    {
+      "text": "a",
+      "start": 1640,
+      "end": 1760,
+      "confidence": 0.99365234,
+      "highlight": false
+    },
+    {
+      "text": "lot",
+      "start": 1760,
+      "end": 1880,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "of",
+      "start": 1880,
+      "end": 2000,
+      "confidence": 0.9970703,
+      "highlight": false
+    },
+    {
+      "text": "people",
+      "start": 2000,
+      "end": 2240,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "that",
+      "start": 2480,
+      "end": 2880,
+      "confidence": 0.72998047,
+      "highlight": false
+    },
+    {
+      "text": "with",
+      "start": 2960,
+      "end": 3240,
+      "confidence": 0.94921875,
+      "highlight": false
+    },
+    {
+      "text": "a",
+      "start": 3240,
+      "end": 3400,
+      "confidence": 0.8808594,
+      "highlight": false
+    },
+    {
+      "text": "lot",
+      "start": 3400,
+      "end": 3520,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "of",
+      "start": 3520,
+      "end": 3640,
+      "confidence": 0.99853516,
+      "highlight": false
+    },
+    {
+      "text": "great",
+      "start": 3640,
+      "end": 3880,
+      "confidence": 0.99902344,
+      "highlight": false
+    },
+    {
+      "text": "experiences",
+      "start": 3880,
+      "end": 4720,
+      "confidence": 0.9980469,
+      "highlight": true
+    },
+    {
+      "text": "from",
+      "start": 4720,
+      "end": 5040,
+      "confidence": 0.9868164,
+      "highlight": false
+    },
+    {
+      "text": "Citibank",
+      "start": 5040,
+      "end": 5560,
+      "confidence": 0.9991455,
+      "highlight": true
+    },
+    {
+      "text": "they",
+      "start": 5560,
+      "end": 5760,
+      "confidence": 0.9682617,
+      "highlight": false
+    },
+    {
+      "text": "built",
+      "start": 5760,
+      "end": 6000,
+      "confidence": 0.8487956,
+      "highlight": true
+    },
+    {
+      "text": "a",
+      "start": 6000,
+      "end": 6080,
+      "confidence": 0.99365234,
+      "highlight": false
+    },
+    {
+      "text": "Swift",
+      "start": 6080,
+      "end": 6360,
+      "confidence": 0.7927246,
+      "highlight": true
+    },
+    {
+      "text": "network",
+      "start": 6360,
+      "end": 6720,
+      "confidence": 0.9995117,
+      "highlight": true
+    },
+    {
+      "text": "before",
+      "start": 6720,
+      "end": 7120,
+      "confidence": 0.99853516,
+      "highlight": false
+    },
+    {
+      "text": "you",
+      "start": 7920,
+      "end": 8160,
+      "confidence": 0.56103516,
+      "highlight": false
+    },
+    {
+      "text": "know",
+      "start": 8160,
+      "end": 8280,
+      "confidence": 0.99902344,
+      "highlight": false
+    },
+    {
+      "text": "they",
+      "start": 8280,
+      "end": 8440,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "know",
+      "start": 8440,
+      "end": 8600,
+      "confidence": 0.99902344,
+      "highlight": false
+    },
+    {
+      "text": "the",
+      "start": 8600,
+      "end": 8800,
+      "confidence": 0.9941406,
+      "highlight": false
+    },
+    {
+      "text": "thing",
+      "start": 8800,
+      "end": 9080,
+      "confidence": 0.9970703,
+      "highlight": false
+    },
+    {
+      "text": "Then",
+      "start": 9080,
+      "end": 9440,
+      "confidence": 0.55322266,
+      "highlight": false
+    },
+    {
+      "text": "they",
+      "start": 9520,
+      "end": 9840,
+      "confidence": 0.9941406,
+      "highlight": false
+    },
+    {
+      "text": "join",
+      "start": 9840,
+      "end": 10160,
+      "confidence": 0.79541016,
+      "highlight": false
+    },
+    {
+      "text": "They",
+      "start": 10160,
+      "end": 10400,
+      "confidence": 0.42138672,
+      "highlight": false
+    },
+    {
+      "text": "telling",
+      "start": 10400,
+      "end": 10720,
+      "confidence": 0.9885254,
+      "highlight": false
+    },
+    {
+      "text": "me",
+      "start": 10720,
+      "end": 10880,
+      "confidence": 0.9980469,
+      "highlight": false
+    },
+    {
+      "text": "like",
+      "start": 10880,
+      "end": 11080,
+      "confidence": 0.7753906,
+      "highlight": false
+    },
+    {
+      "text": "you",
+      "start": 11080,
+      "end": 11240,
+      "confidence": 0.99853516,
+      "highlight": false
+    },
+    {
+      "text": "guys",
+      "start": 11240,
+      "end": 11480,
+      "confidence": 0.99975586,
+      "highlight": false
+    },
+    {
+      "text": "know",
+      "start": 11480,
+      "end": 11680,
+      "confidence": 0.7763672,
+      "highlight": false
+    },
+    {
+      "text": "nothing",
+      "start": 11680,
+      "end": 12080,
+      "confidence": 0.95214844,
+      "highlight": true
+    },
+    {
+      "text": "What",
+      "start": 12080,
+      "end": 12360,
+      "confidence": 0.9980469,
+      "highlight": false
+    },
+    {
+      "text": "you're",
+      "start": 12360,
+      "end": 12560,
+      "confidence": 0.81966144,
+      "highlight": false
+    },
+    {
+      "text": "going",
+      "start": 12560,
+      "end": 12640,
+      "confidence": 0.6064453,
+      "highlight": false
+    },
+    {
+      "text": "to",
+      "start": 12640,
+      "end": 12720,
+      "confidence": 0.99853516,
+      "highlight": false
+    },
+    {
+      "text": "do",
+      "start": 12720,
+      "end": 12840,
+      "confidence": 0.9970703,
+      "highlight": false
+    },
+    {
+      "text": "doesn't",
+      "start": 12840,
+      "end": 13160,
+      "confidence": 0.9348958,
+      "highlight": false
+    },
+    {
+      "text": "work",
+      "start": 13160,
+      "end": 13400,
+      "confidence": 1.0,
+      "highlight": true
+    },
+    {
+      "text": "We",
+      "start": 13400,
+      "end": 13640,
+      "confidence": 0.9951172,
+      "highlight": false
+    },
+    {
+      "text": "need",
+      "start": 13640,
+      "end": 13800,
+      "confidence": 0.99902344,
+      "highlight": false
+    },
+    {
+      "text": "to",
+      "start": 13800,
+      "end": 14080,
+      "confidence": 0.9980469,
+      "highlight": false
+    },
+    {
+      "text": "you",
+      "start": 14560,
+      "end": 14840,
+      "confidence": 0.5917969,
+      "highlight": false
+    },
+    {
+      "text": "know",
+      "start": 14840,
+      "end": 15040,
+      "confidence": 0.99902344,
+      "highlight": false
+    },
+    {
+      "text": "do",
+      "start": 15040,
+      "end": 15280,
+      "confidence": 0.9848633,
+      "highlight": false
+    },
+    {
+      "text": "blah",
+      "start": 15280,
+      "end": 15520,
+      "confidence": 0.9926758,
+      "highlight": false
+    },
+    {
+      "text": "blah",
+      "start": 15520,
+      "end": 15720,
+      "confidence": 0.9848633,
+      "highlight": false
+    },
+    {
+      "text": "blah",
+      "start": 15720,
+      "end": 16080,
+      "confidence": 0.9206543,
+      "highlight": false
+    },
+    {
+      "text": "And",
+      "start": 16800,
+      "end": 17120,
+      "confidence": 0.9794922,
+      "highlight": false
+    },
+    {
+      "text": "none",
+      "start": 17120,
+      "end": 17360,
+      "confidence": 0.99731445,
+      "highlight": true
+    },
+    {
+      "text": "of",
+      "start": 17360,
+      "end": 17440,
+      "confidence": 0.99658203,
+      "highlight": false
+    },
+    {
+      "text": "those",
+      "start": 17440,
+      "end": 17600,
+      "confidence": 0.9941406,
+      "highlight": false
+    },
+    {
+      "text": "people",
+      "start": 17600,
+      "end": 17880,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "worked",
+      "start": 17880,
+      "end": 18320,
+      "confidence": 0.99780273,
+      "highlight": true
+    },
+    {
+      "text": "None",
+      "start": 18320,
+      "end": 18640,
+      "confidence": 0.7558594,
+      "highlight": true
+    },
+    {
+      "text": "of",
+      "start": 18640,
+      "end": 18720,
+      "confidence": 0.9086914,
+      "highlight": false
+    },
+    {
+      "text": "the",
+      "start": 18720,
+      "end": 18840,
+      "confidence": 0.8779297,
+      "highlight": false
+    },
+    {
+      "text": "people",
+      "start": 18840,
+      "end": 19040,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "think",
+      "start": 19040,
+      "end": 19280,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "they",
+      "start": 19280,
+      "end": 19520,
+      "confidence": 0.9980469,
+      "highlight": false
+    },
+    {
+      "text": "know",
+      "start": 19520,
+      "end": 19720,
+      "confidence": 0.9892578,
+      "highlight": false
+    },
+    {
+      "text": "how",
+      "start": 19720,
+      "end": 19840,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "to",
+      "start": 19840,
+      "end": 19960,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "build",
+      "start": 19960,
+      "end": 20160,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "a",
+      "start": 20160,
+      "end": 20320,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "startup",
+      "start": 20320,
+      "end": 20720,
+      "confidence": 0.99487305,
+      "highlight": true
+    },
+    {
+      "text": "that",
+      "start": 20720,
+      "end": 20920,
+      "confidence": 0.99902344,
+      "highlight": false
+    },
+    {
+      "text": "worked",
+      "start": 20920,
+      "end": 21360,
+      "confidence": 0.99902344,
+      "highlight": true
+    },
+    {
+      "text": "And",
+      "start": 21520,
+      "end": 21840,
+      "confidence": 0.9794922,
+      "highlight": false
+    },
+    {
+      "text": "ultimately",
+      "start": 21840,
+      "end": 22480,
+      "confidence": 0.84873044,
+      "highlight": true
+    },
+    {
+      "text": "it's",
+      "start": 22480,
+      "end": 22720,
+      "confidence": 0.9967448,
+      "highlight": false
+    },
+    {
+      "text": "not",
+      "start": 22720,
+      "end": 22960,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "about",
+      "start": 22960,
+      "end": 23360,
+      "confidence": 0.83251953,
+      "highlight": false
+    },
+    {
+      "text": "experience",
+      "start": 23360,
+      "end": 23760,
+      "confidence": 0.9760742,
+      "highlight": true
+    },
+    {
+      "text": "it's",
+      "start": 23760,
+      "end": 24160,
+      "confidence": 0.98844403,
+      "highlight": false
+    },
+    {
+      "text": "about",
+      "start": 24160,
+      "end": 24280,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "the",
+      "start": 24280,
+      "end": 24440,
+      "confidence": 0.97509766,
+      "highlight": false
+    },
+    {
+      "text": "competency",
+      "start": 24440,
+      "end": 24920,
+      "confidence": 0.9995117,
+      "highlight": true
+    },
+    {
+      "text": "Right",
+      "start": 24920,
+      "end": 25160,
+      "confidence": 0.8125,
+      "highlight": false
+    },
+    {
+      "text": "It's",
+      "start": 25160,
+      "end": 25320,
+      "confidence": 0.8465169,
+      "highlight": false
+    },
+    {
+      "text": "about",
+      "start": 25320,
+      "end": 25520,
+      "confidence": 0.9892578,
+      "highlight": false
+    },
+    {
+      "text": "the",
+      "start": 25520,
+      "end": 25720,
+      "confidence": 0.953125,
+      "highlight": false
+    },
+    {
+      "text": "curiosity",
+      "start": 25720,
+      "end": 26240,
+      "confidence": 0.9998779,
+      "highlight": true
+    },
+    {
+      "text": "the",
+      "start": 26240,
+      "end": 26440,
+      "confidence": 0.99316406,
+      "highlight": false
+    },
+    {
+      "text": "determination",
+      "start": 26440,
+      "end": 27080,
+      "confidence": 1.0,
+      "highlight": true
+    },
+    {
+      "text": "about",
+      "start": 27080,
+      "end": 27360,
+      "confidence": 0.9941406,
+      "highlight": false
+    },
+    {
+      "text": "the",
+      "start": 27360,
+      "end": 27680,
+      "confidence": 0.9458008,
+      "highlight": false
+    },
+    {
+      "text": "resilience",
+      "start": 28240,
+      "end": 28800,
+      "confidence": 0.9996745,
+      "highlight": true
+    },
+    {
+      "text": "and",
+      "start": 28800,
+      "end": 29000,
+      "confidence": 0.9970703,
+      "highlight": false
+    },
+    {
+      "text": "about",
+      "start": 29000,
+      "end": 29200,
+      "confidence": 0.9951172,
+      "highlight": false
+    },
+    {
+      "text": "the",
+      "start": 29200,
+      "end": 29400,
+      "confidence": 0.91845703,
+      "highlight": false
+    },
+    {
+      "text": "belief",
+      "start": 29400,
+      "end": 29640,
+      "confidence": 0.95043945,
+      "highlight": true
+    },
+    {
+      "text": "in",
+      "start": 29640,
+      "end": 29800,
+      "confidence": 0.5283203,
+      "highlight": false
+    },
+    {
+      "text": "the",
+      "start": 29800,
+      "end": 29960,
+      "confidence": 0.88378906,
+      "highlight": false
+    },
+    {
+      "text": "vision",
+      "start": 29960,
+      "end": 30200,
+      "confidence": 0.9980469,
+      "highlight": true
+    },
+    {
+      "text": "about",
+      "start": 30200,
+      "end": 30400,
+      "confidence": 0.99560547,
+      "highlight": false
+    },
+    {
+      "text": "the",
+      "start": 30400,
+      "end": 30600,
+      "confidence": 0.9760742,
+      "highlight": false
+    },
+    {
+      "text": "passion",
+      "start": 30600,
+      "end": 31040,
+      "confidence": 0.9987793,
+      "highlight": true
+    },
+    {
+      "text": "And",
+      "start": 31120,
+      "end": 31440,
+      "confidence": 0.9707031,
+      "highlight": false
+    },
+    {
+      "text": "I",
+      "start": 31440,
+      "end": 31640,
+      "confidence": 0.9980469,
+      "highlight": false
+    },
+    {
+      "text": "think",
+      "start": 31640,
+      "end": 31910,
+      "confidence": 0.99560547,
+      "highlight": false
+    },
+    {
+      "text": "we",
+      "start": 31980,
+      "end": 32140,
+      "confidence": 0.9423828,
+      "highlight": false
+    },
+    {
+      "text": "should",
+      "start": 32140,
+      "end": 32340,
+      "confidence": 0.99902344,
+      "highlight": false
+    },
+    {
+      "text": "just",
+      "start": 32340,
+      "end": 32540,
+      "confidence": 0.99658203,
+      "highlight": false
+    },
+    {
+      "text": "have",
+      "start": 32540,
+      "end": 32820,
+      "confidence": 0.9941406,
+      "highlight": false
+    },
+    {
+      "text": "hired",
+      "start": 32820,
+      "end": 33220,
+      "confidence": 0.98950195,
+      "highlight": false
+    },
+    {
+      "text": "those",
+      "start": 33220,
+      "end": 33580,
+      "confidence": 0.99853516,
+      "highlight": false
+    },
+    {
+      "text": "curious",
+      "start": 34060,
+      "end": 34740,
+      "confidence": 0.99902344,
+      "highlight": true
+    },
+    {
+      "text": "determined",
+      "start": 34740,
+      "end": 35580,
+      "confidence": 0.9663086,
+      "highlight": false
+    },
+    {
+      "text": "optimistic",
+      "start": 35580,
+      "end": 36340,
+      "confidence": 0.9050293,
+      "highlight": true
+    },
+    {
+      "text": "people",
+      "start": 36340,
+      "end": 36580,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "from",
+      "start": 36580,
+      "end": 36860,
+      "confidence": 0.99902344,
+      "highlight": false
+    },
+    {
+      "text": "early",
+      "start": 36860,
+      "end": 37140,
+      "confidence": 0.9980469,
+      "highlight": false
+    },
+    {
+      "text": "on",
+      "start": 37140,
+      "end": 37500,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "but",
+      "start": 38060,
+      "end": 38340,
+      "confidence": 0.9970703,
+      "highlight": false
+    },
+    {
+      "text": "we",
+      "start": 38340,
+      "end": 38500,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "didn't",
+      "start": 38500,
+      "end": 38940,
+      "confidence": 0.9991862,
+      "highlight": false
+    },
+    {
+      "text": "So",
+      "start": 38940,
+      "end": 39180,
+      "confidence": 0.9838867,
+      "highlight": false
+    },
+    {
+      "text": "we",
+      "start": 39180,
+      "end": 39300,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "had",
+      "start": 39300,
+      "end": 39420,
+      "confidence": 0.99902344,
+      "highlight": false
+    },
+    {
+      "text": "to",
+      "start": 39420,
+      "end": 39660,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "fire",
+      "start": 39900,
+      "end": 40260,
+      "confidence": 0.9980469,
+      "highlight": true
+    },
+    {
+      "text": "all",
+      "start": 40260,
+      "end": 40500,
+      "confidence": 0.9975586,
+      "highlight": false
+    },
+    {
+      "text": "of",
+      "start": 40500,
+      "end": 40620,
+      "confidence": 0.9921875,
+      "highlight": false
+    },
+    {
+      "text": "them",
+      "start": 40620,
+      "end": 40860,
+      "confidence": 0.9970703,
+      "highlight": false
+    }
+  ],
+  "duration_ms": 41000
+}

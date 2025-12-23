@@ -4,13 +4,13 @@ Podcast Video to Vertical Shorts Converter (V3 - Production Ready)
 
 Converts horizontal (16:9) podcast videos into vertical (9:16) shorts by:
 1. Detecting scenes/cuts with PySceneDetect
-2. Detecting faces with YOLOv8 (reliable, won't confuse hands for faces)
-3. Detecting mouth movement with MediaPipe Face Mesh (speaking detection)
+2. Detecting faces with InsightFace (handles side profiles well)
+3. Detecting mouth movement from facial landmarks (speaking detection)
 4. Smooth camera tracking with Kalman filter
 5. Instant snap on scene changes, smooth transitions otherwise
 
 Requirements:
-    pip install opencv-python mediapipe numpy ultralytics scenedetect filterpy
+    pip install opencv-python insightface onnxruntime numpy ultralytics scenedetect filterpy
 
 FFMPEG must be in PATH for final encoding.
 
@@ -29,10 +29,8 @@ from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Tuple, Any
 from enum import Enum, auto
 
-# Third-party imports
-import mediapipe as mp
-from mediapipe.tasks import python as mp_tasks
-from mediapipe.tasks.python import vision
+# Third-party imports - InsightFace for robust face detection
+# Works much better with side profiles than MediaPipe
 
 # =============================================================================
 # CONFIGURATION
@@ -46,19 +44,13 @@ class Config:
     output_aspect_ratio: float = 9 / 16  # Vertical shorts format
     output_resolution: Tuple[int, int] = (1080, 1920)  # Width x Height for output
     
-    # === Detection Settings ===
-    # YOLOv8 - Primary face/person detection
-    yolo_model: str = "yolov8n.pt"  # Nano model for speed
-    yolo_conf_threshold: float = 0.5  # Confidence threshold
-    yolo_face_class: int = 0  # Person class (we extract face region from person bbox)
+    # === InsightFace - Face Detection with Side Profile Support ===
+    insightface_det_size: Tuple[int, int] = (640, 640)  # Detection size
+    insightface_det_thresh: float = 0.3  # Detection threshold (lower = more sensitive)
+    insightface_max_faces: int = 4  # Max faces to track
     
     # Face detection frequency
     detection_interval: int = 1  # Detect every N frames (1 = every frame for accuracy)
-    
-    # === MediaPipe Face Mesh - Mouth Movement Detection ===
-    mesh_min_detection_confidence: float = 0.5
-    mesh_min_tracking_confidence: float = 0.5
-    mesh_num_faces: int = 4  # Max faces to track
     
     # === Speaking Detection ===
     # Mouth Aspect Ratio (MAR) parameters
@@ -114,60 +106,94 @@ class Config:
     # Focus persistence - keep focus on someone who was recently speaking
     recent_speaker_hold_frames: int = 90  # ~3 seconds to hold focus on recent speaker
     recent_speaker_bonus: float = 8.0  # Bonus for the person who was recently speaking
+    
+    # === Motion Detection (fallback when mouth tracking unavailable) ===
+    motion_history_length: int = 15  # Frames to analyze for motion
+    motion_variance_threshold: float = 8.0  # Pixel variance threshold for movement
+    weight_motion: float = 10.0  # Weight for motion when no mouth data available
+    no_mesh_penalty: float = 3.0  # Penalty for faces without mouth tracking (reduced from scoring)
 
 
 # =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
 
-def euclidean_distance(p1, p2) -> float:
-    """Calculate Euclidean distance between two points with x,y attributes."""
-    return np.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2)
+def euclidean_distance_pts(p1: np.ndarray, p2: np.ndarray) -> float:
+    """Calculate Euclidean distance between two points as numpy arrays [x, y]."""
+    return np.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 
 
-def calculate_mar(landmarks) -> float:
+def calculate_mar_insightface(landmarks_2d: np.ndarray) -> float:
     """
-    Calculate Mouth Aspect Ratio (MAR).
+    Calculate Mouth Aspect Ratio (MAR) from InsightFace 2D landmarks.
     Higher MAR = mouth more open.
     
-    Uses MediaPipe Face Mesh landmark indices:
-    - Upper lip inner: 13
-    - Lower lip inner: 14
-    - Left mouth corner: 61
-    - Right mouth corner: 291
+    InsightFace 2D landmarks (106 points) mouth indices:
+    - Upper lip: 86, 87, 88 (center top)
+    - Lower lip: 92, 93, 94 (center bottom)  
+    - Left mouth corner: 84
+    - Right mouth corner: 90
+    
+    For 5-point landmarks, we estimate from nose/eye positions.
     """
-    if len(landmarks) < 468:  # Full face mesh has 468 landmarks
+    if landmarks_2d is None:
         return 0.0
     
-    upper = landmarks[13]
-    lower = landmarks[14]
-    left = landmarks[61]
-    right = landmarks[291]
+    num_landmarks = len(landmarks_2d)
     
-    vertical_dist = euclidean_distance(upper, lower)
-    horizontal_dist = euclidean_distance(left, right)
+    if num_landmarks >= 106:
+        # Full 106-point landmarks - precise mouth tracking
+        upper_lip = landmarks_2d[87]  # Upper lip center
+        lower_lip = landmarks_2d[93]  # Lower lip center
+        left_corner = landmarks_2d[84]  # Left mouth corner
+        right_corner = landmarks_2d[90]  # Right mouth corner
+        
+        vertical_dist = euclidean_distance_pts(upper_lip, lower_lip)
+        horizontal_dist = euclidean_distance_pts(left_corner, right_corner)
+        
+        if horizontal_dist < 1.0:
+            return 0.0
+        
+        return vertical_dist / horizontal_dist
     
-    if horizontal_dist < 0.001:
-        return 0.0
+    elif num_landmarks >= 68:
+        # 68-point landmarks (dlib-style) 
+        # Upper lip: 51, 62, 63 | Lower lip: 57, 66, 67 | Corners: 48, 54
+        upper_lip = landmarks_2d[62]  # Upper lip inner
+        lower_lip = landmarks_2d[66]  # Lower lip inner
+        left_corner = landmarks_2d[48]
+        right_corner = landmarks_2d[54]
+        
+        vertical_dist = euclidean_distance_pts(upper_lip, lower_lip)
+        horizontal_dist = euclidean_distance_pts(left_corner, right_corner)
+        
+        if horizontal_dist < 1.0:
+            return 0.0
+        
+        return vertical_dist / horizontal_dist
     
-    return vertical_dist / horizontal_dist
+    elif num_landmarks >= 5:
+        # Basic 5-point landmarks (just eyes, nose, mouth corners)
+        # Indices: 0=left_eye, 1=right_eye, 2=nose, 3=left_mouth, 4=right_mouth
+        # Can only estimate mouth width, not opening - return small value
+        # We'll rely more on motion detection in this case
+        return 0.05  # Small constant - face detected but no mouth detail
+    
+    return 0.0
 
 
-def calculate_face_center_from_mesh(landmarks, frame_w: int, frame_h: int) -> Tuple[float, float, float, float]:
+def calculate_face_bbox_from_insightface(bbox: np.ndarray) -> Tuple[float, float, float, float]:
     """
-    Calculate face bounding box from mesh landmarks.
+    Calculate face center and size from InsightFace bbox.
+    InsightFace returns [x1, y1, x2, y2, score]
     Returns: (center_x, center_y, width, height) in pixels
     """
-    xs = [l.x * frame_w for l in landmarks]
-    ys = [l.y * frame_h for l in landmarks]
+    x1, y1, x2, y2 = bbox[:4]
     
-    min_x, max_x = min(xs), max(xs)
-    min_y, max_y = min(ys), max(ys)
-    
-    center_x = (min_x + max_x) / 2
-    center_y = (min_y + max_y) / 2
-    width = max_x - min_x
-    height = max_y - min_y
+    center_x = (x1 + x2) / 2
+    center_y = (y1 + y2) / 2
+    width = x2 - x1
+    height = y2 - y1
     
     return center_x, center_y, width, height
 
@@ -214,10 +240,33 @@ class TrackedFace:
     # Tracking
     frames_since_seen: int = 0
     position_history: deque = field(default_factory=lambda: deque(maxlen=30))
+    motion_score: float = 0.0  # Movement detection score
     
     @property
     def area(self) -> float:
         return self.width * self.height
+    
+    @property
+    def is_moving(self) -> bool:
+        """True if this face shows significant movement (head motion)."""
+        return self.motion_score > 8.0  # Use threshold from config ideally
+    
+    def calculate_motion(self):
+        """Calculate motion score based on position history variance."""
+        if len(self.position_history) < 5:
+            self.motion_score = 0.0
+            return
+        
+        positions = list(self.position_history)
+        xs = [p[0] for p in positions]
+        ys = [p[1] for p in positions]
+        
+        # Calculate variance of recent positions
+        var_x = np.var(xs)
+        var_y = np.var(ys)
+        
+        # Combined motion score
+        self.motion_score = np.sqrt(var_x + var_y)
     
     @property
     def is_speaking(self) -> bool:
@@ -297,6 +346,7 @@ class TrackedFace:
         self.height = h
         self.position_history.append((x, y))
         self.frames_since_seen = 0
+        self.calculate_motion()  # Update motion score
 
 
 @dataclass
@@ -385,249 +435,155 @@ class SceneDetector:
 
 
 # =============================================================================
-# FACE DETECTOR (YOLOv8 + MediaPipe)
+# FACE DETECTOR (InsightFace - Better Side Profile Support)
 # =============================================================================
 
 class FaceDetector:
     """
-    Hybrid face detector combining:
-    1. YOLOv8 for reliable person/face detection (won't confuse hands)
-    2. MediaPipe Face Mesh for lip tracking and speaking detection
+    Face detector using InsightFace for robust detection including side profiles.
+    InsightFace provides:
+    1. Reliable face detection at various angles (frontal to 90° profile)
+    2. 2D/3D facial landmarks for mouth tracking
+    3. Face embeddings (useful for identity tracking)
     """
-    
-    MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
-    MODEL_NAME = "face_landmarker.task"
     
     def __init__(self, config: Config):
         self.config = config
         
-        # Initialize YOLOv8
-        self.yolo_model = None
-        self._init_yolo()
-        
-        # Initialize MediaPipe Face Mesh
-        self.face_landmarker = None
-        self._init_mediapipe()
+        # Initialize InsightFace
+        self.face_analyzer = None
+        self._init_insightface()
         
         # Face tracking state
         self.tracked_faces: Dict[int, TrackedFace] = {}
         self.next_face_id = 0
-    
-    def _init_yolo(self):
-        """Initialize YOLOv8 model."""
-        try:
-            from ultralytics import YOLO
-            
-            model_path = self.config.yolo_model
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            full_path = os.path.join(script_dir, model_path)
-            
-            if os.path.exists(full_path):
-                model_path = full_path
-            
-            self.yolo_model = YOLO(model_path)
-            print(f"[INFO] YOLOv8 loaded: {model_path}")
-        except ImportError:
-            print("[WARNING] ultralytics not installed, using MediaPipe only")
-            print("[TIP] Install with: pip install ultralytics")
-        except Exception as e:
-            print(f"[WARNING] YOLOv8 init failed: {e}")
-    
-    def _init_mediapipe(self):
-        """Initialize MediaPipe Face Landmarker."""
-        # Download model if needed
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        model_path = os.path.join(script_dir, self.MODEL_NAME)
         
-        if not os.path.exists(model_path):
-            import urllib.request
-            print("[INFO] Downloading Face Landmarker model...")
-            try:
-                urllib.request.urlretrieve(self.MODEL_URL, model_path)
-                print(f"[INFO] Model saved to: {model_path}")
-            except Exception as e:
-                print(f"[ERROR] Failed to download model: {e}")
-                return
-        
+        # Debug counters
+        self._frame_count = 0
+        self._face_detect_count = 0
+    
+    def _init_insightface(self):
+        """Initialize InsightFace face analyzer."""
         try:
-            base_options = mp_tasks.BaseOptions(model_asset_path=model_path)
-            options = vision.FaceLandmarkerOptions(
-                base_options=base_options,
-                num_faces=self.config.mesh_num_faces,
-                min_face_detection_confidence=self.config.mesh_min_detection_confidence,
-                min_face_presence_confidence=self.config.mesh_min_detection_confidence,
-                min_tracking_confidence=self.config.mesh_min_tracking_confidence,
-                running_mode=vision.RunningMode.IMAGE
+            from insightface.app import FaceAnalysis
+            
+            # Use buffalo_l for best accuracy, or buffalo_sc for speed
+            # Models are downloaded automatically on first use
+            self.face_analyzer = FaceAnalysis(
+                name='buffalo_l',  # Best model for accuracy
+                providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
             )
-            self.face_landmarker = vision.FaceLandmarker.create_from_options(options)
-            print("[INFO] MediaPipe Face Landmarker initialized")
+            self.face_analyzer.prepare(
+                ctx_id=0,  # GPU ID (0 for first GPU, -1 for CPU)
+                det_size=self.config.insightface_det_size,
+                det_thresh=self.config.insightface_det_thresh
+            )
+            print("[INFO] InsightFace initialized (buffalo_l model)")
+            print("[INFO] InsightFace handles side profiles much better than MediaPipe!")
+        except ImportError:
+            print("[ERROR] InsightFace not installed!")
+            print("[TIP] Install with: pip install insightface onnxruntime")
+            print("[TIP] For GPU support: pip install onnxruntime-gpu")
         except Exception as e:
-            print(f"[ERROR] MediaPipe init failed: {e}")
+            print(f"[ERROR] InsightFace init failed: {e}")
+            import traceback
+            traceback.print_exc()
     
     def detect(self, frame: np.ndarray) -> Dict[int, TrackedFace]:
         """
-        Detect and track faces in frame.
+        Detect and track faces in frame using InsightFace.
         
-        Strategy:
-        1. Use YOLOv8 to get person bounding boxes (reliable, ignores hands)
-        2. Use MediaPipe Face Mesh on detected regions for lip tracking
-        3. Merge results and track face IDs across frames
+        InsightFace provides:
+        - bbox: [x1, y1, x2, y2, score]
+        - landmark_2d_106: 106 facial landmarks (if available)
+        - landmark_3d_68: 68 3D landmarks
+        - pose: [pitch, yaw, roll] head pose
         """
+        self._frame_count += 1
         frame_h, frame_w = frame.shape[:2]
         min_face_size = frame_h * self.config.min_face_size_ratio
         max_face_size = frame_h * self.config.max_face_size_ratio
         
         detected_faces = []
         
-        # Step 1: YOLOv8 person detection
-        yolo_boxes = []
-        if self.yolo_model is not None:
+        if self.face_analyzer is not None:
             try:
-                results = self.yolo_model(frame, verbose=False, classes=[0])  # Person class
-                if results and len(results) > 0:
-                    boxes = results[0].boxes
-                    if boxes is not None and len(boxes) > 0:
-                        for box in boxes:
-                            conf = float(box.conf[0])
-                            if conf < self.config.yolo_conf_threshold:
-                                continue
-                            
-                            x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-                            
-                            # Estimate face region from person bbox (upper portion)
-                            person_h = y2 - y1
-                            person_w = x2 - x1
-                            
-                            # Face is typically in upper 30-40% of person bbox
-                            face_y1 = y1
-                            face_y2 = y1 + person_h * 0.35
-                            face_h = face_y2 - face_y1
-                            
-                            # Center horizontally, face width ~60% of person width
-                            face_w = person_w * 0.6
-                            face_x1 = x1 + (person_w - face_w) / 2
-                            face_x2 = face_x1 + face_w
-                            
-                            face_cx = (face_x1 + face_x2) / 2
-                            face_cy = (face_y1 + face_y2) / 2
-                            
-                            if face_h < min_face_size or face_h > max_face_size:
-                                continue
-                            
-                            yolo_boxes.append({
-                                'cx': face_cx, 'cy': face_cy,
-                                'w': face_w, 'h': face_h,
-                                'conf': conf,
-                                'from_yolo': True
-                            })
+                # InsightFace expects BGR (OpenCV default)
+                faces = self.face_analyzer.get(frame, max_num=self.config.insightface_max_faces)
+                
+                for face in faces:
+                    # Get bounding box
+                    cx, cy, w, h = calculate_face_bbox_from_insightface(face.bbox)
+                    
+                    # Filter by size
+                    if h < min_face_size or h > max_face_size:
+                        continue
+                    
+                    # Calculate MAR from landmarks
+                    mar = 0.0
+                    has_landmarks = False
+                    
+                    # Try 106-point landmarks first (best for mouth)
+                    if hasattr(face, 'landmark_2d_106') and face.landmark_2d_106 is not None:
+                        mar = calculate_mar_insightface(face.landmark_2d_106)
+                        has_landmarks = True
+                    # Fall back to 3D 68-point landmarks
+                    elif hasattr(face, 'landmark_3d_68') and face.landmark_3d_68 is not None:
+                        # Use only x,y from 3D landmarks
+                        landmarks_2d = face.landmark_3d_68[:, :2]
+                        mar = calculate_mar_insightface(landmarks_2d)
+                        has_landmarks = True
+                    # Fall back to 2D 5-point landmarks (basic)
+                    elif hasattr(face, 'landmark_2d') and face.landmark_2d is not None:
+                        mar = calculate_mar_insightface(face.landmark_2d)
+                        has_landmarks = len(face.landmark_2d) >= 5
+                    elif hasattr(face, 'kps') and face.kps is not None:
+                        # kps = keypoints (5 points: 2 eyes, nose, 2 mouth corners)
+                        mar = calculate_mar_insightface(face.kps)
+                        has_landmarks = True
+                    
+                    # Get confidence from bbox (5th element)
+                    conf = float(face.bbox[4]) if len(face.bbox) > 4 else 0.9
+                    
+                    # Get head pose if available (useful for debugging)
+                    pose = None
+                    if hasattr(face, 'pose') and face.pose is not None:
+                        pose = face.pose  # [pitch, yaw, roll]
+                    
+                    detected_faces.append({
+                        'cx': cx,
+                        'cy': cy,
+                        'w': w,
+                        'h': h,
+                        'mar': mar,
+                        'conf': conf,
+                        'from_yolo': False,  # Not using YOLO anymore
+                        'from_mesh': has_landmarks,  # True if we have landmarks
+                        'pose': pose
+                    })
+                
+                # Debug output every 100 frames
+                if len(detected_faces) > 0:
+                    self._face_detect_count += 1
+                
+                if self._frame_count % 100 == 0:
+                    rate = (self._face_detect_count / self._frame_count * 100) if self._frame_count > 0 else 0
+                    print(f"[DEBUG] Frame {self._frame_count}: InsightFace detected {len(detected_faces)} faces, "
+                          f"Detection rate: {rate:.1f}%")
+                    for i, f in enumerate(detected_faces):
+                        pose_str = ""
+                        if f.get('pose') is not None:
+                            yaw = f['pose'][1]  # Yaw = left/right rotation
+                            pose_str = f", Yaw: {yaw:.1f}°"
+                        print(f"  Face {i+1}: MAR={f['mar']:.3f}, Conf={f['conf']:.2f}{pose_str}")
+                        
             except Exception as e:
-                print(f"[WARNING] YOLO detection error: {e}")
+                print(f"[WARNING] InsightFace detection error: {e}")
+                import traceback
+                traceback.print_exc()
         
-        # Step 2: MediaPipe Face Mesh
-        mesh_faces = []
-        if self.face_landmarker is not None:
-            try:
-                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
-                result = self.face_landmarker.detect(mp_image)
-                
-                if result.face_landmarks:
-                    for landmarks in result.face_landmarks:
-                        cx, cy, w, h = calculate_face_center_from_mesh(
-                            landmarks, frame_w, frame_h
-                        )
-                        
-                        if h < min_face_size or h > max_face_size:
-                            continue
-                        
-                        mar = calculate_mar(landmarks)
-                        
-                        mesh_faces.append({
-                            'cx': cx, 'cy': cy,
-                            'w': w, 'h': h,
-                            'mar': mar,
-                            'conf': 1.0,
-                            'from_mesh': True,
-                            'landmarks': landmarks
-                        })
-            except Exception as e:
-                print(f"[WARNING] MediaPipe detection error: {e}")
-        
-        # Step 3: Merge YOLO and Mesh detections
-        # PRIORITY: MediaPipe faces are more accurate for mouth tracking
-        # Match mesh faces to YOLO boxes based on position overlap
-        merged_faces = []
-        used_mesh = set()
-        used_yolo = set()
-        
-        # First pass: Match YOLO detections to mesh faces with generous distance
-        for yolo_idx, yolo_face in enumerate(yolo_boxes):
-            best_mesh_idx = -1
-            best_dist = float('inf')
-            
-            for i, mesh_face in enumerate(mesh_faces):
-                if i in used_mesh:
-                    continue
-                
-                dist = np.hypot(
-                    yolo_face['cx'] - mesh_face['cx'],
-                    yolo_face['cy'] - mesh_face['cy']
-                )
-                
-                # INCREASED matching distance - YOLO face estimate can be far off
-                # Use frame-relative distance instead of face-relative
-                max_dist = frame_w * 0.15  # 15% of frame width
-                if dist < max_dist and dist < best_dist:
-                    best_dist = dist
-                    best_mesh_idx = i
-            
-            if best_mesh_idx >= 0:
-                # Merge: use mesh position and MAR (more accurate)
-                mesh = mesh_faces[best_mesh_idx]
-                merged_faces.append({
-                    'cx': mesh['cx'],
-                    'cy': mesh['cy'],
-                    'w': mesh['w'],
-                    'h': mesh['h'],
-                    'mar': mesh['mar'],
-                    'conf': max(yolo_face['conf'], 0.9),  # High confidence for merged
-                    'from_yolo': True,
-                    'from_mesh': True
-                })
-                used_mesh.add(best_mesh_idx)
-                used_yolo.add(yolo_idx)
-        
-        # Add unmatched mesh faces FIRST (MediaPipe found face but YOLO missed)
-        # These are HIGH PRIORITY because they have mouth landmarks!
-        for i, mesh_face in enumerate(mesh_faces):
-            if i not in used_mesh:
-                merged_faces.append({
-                    'cx': mesh_face['cx'],
-                    'cy': mesh_face['cy'],
-                    'w': mesh_face['w'],
-                    'h': mesh_face['h'],
-                    'mar': mesh_face['mar'],
-                    'conf': 0.95,  # HIGH confidence - we have actual face landmarks!
-                    'from_yolo': False,
-                    'from_mesh': True
-                })
-        
-        # Add unmatched YOLO faces last (no mouth tracking available)
-        for yolo_idx, yolo_face in enumerate(yolo_boxes):
-            if yolo_idx not in used_yolo:
-                merged_faces.append({
-                    'cx': yolo_face['cx'],
-                    'cy': yolo_face['cy'],
-                    'w': yolo_face['w'],
-                    'h': yolo_face['h'],
-                    'mar': 0.0,
-                    'conf': yolo_face['conf'] * 0.7,  # Lower confidence - no face landmarks
-                    'from_yolo': True,
-                    'from_mesh': False
-                })
-        
-        # Step 4: Track faces across frames (ID persistence)
-        return self._track_faces(merged_faces)
+        # Track faces across frames (ID persistence)
+        return self._track_faces(detected_faces)
     
     def _track_faces(self, detections: List[dict]) -> Dict[int, TrackedFace]:
         """Match detections to existing tracked faces and update IDs."""
@@ -664,8 +620,8 @@ class FaceDetector:
                 # Update existing face
                 tracked = self.tracked_faces[best_track_id]
                 tracked.update_position(det['cx'], det['cy'], det['w'], det['h'])
-                tracked.from_yolo = det['from_yolo']
-                tracked.from_mesh = det['from_mesh']
+                tracked.from_yolo = det.get('from_yolo', False)
+                tracked.from_mesh = det.get('from_mesh', True)
                 tracked.confidence = det['conf']
                 
                 if det['mar'] > 0:
@@ -687,8 +643,8 @@ class FaceDetector:
                 center_y=det['cy'],
                 width=det['w'],
                 height=det['h'],
-                from_yolo=det['from_yolo'],
-                from_mesh=det['from_mesh'],
+                from_yolo=det.get('from_yolo', False),
+                from_mesh=det.get('from_mesh', True),
                 confidence=det['conf'],
                 mar=det['mar']
             )
@@ -714,9 +670,8 @@ class FaceDetector:
         self.tracked_faces.clear()
     
     def close(self):
-        """Release resources."""
-        if self.face_landmarker:
-            self.face_landmarker.close()
+        """Release InsightFace resources."""
+        pass  # InsightFace doesn't need explicit cleanup
 
 
 # =============================================================================
@@ -781,16 +736,26 @@ class SpeakerSelector:
         
         for fid, face in faces.items():
             score = 0.0
+            has_mouth_data = face.from_mesh and len(face.mar_history) > 0
             
-            # Speaking score (highest priority)
+            # Speaking score (highest priority when we have mouth data)
             if face.is_speaking:
                 # Base speaking score + bonus based on how strong the speaking signal is
                 score += self.config.weight_speaking * (1 + face.speaking_score * 50)
             
-            # PENALTY for faces that have never had mouth tracking
-            # If a face has no MAR history, we can't detect if it's speaking
-            if len(face.mar_history) == 0 and not face.from_mesh:
-                score -= 5.0  # Significant penalty for no mouth data
+            # MOTION DETECTION - fallback when no mouth tracking available
+            # This helps detect who's active when MediaPipe fails to track mouth
+            if not has_mouth_data:
+                # Use motion as a proxy for speaking/activity
+                if face.is_moving:
+                    # Moving person is likely speaking or reacting
+                    score += self.config.weight_motion * (1 + face.motion_score / 50.0)
+                # Still apply penalty for no mouth data, but reduced if moving
+                penalty = self.config.no_mesh_penalty if not face.is_moving else (self.config.no_mesh_penalty * 0.3)
+                score -= penalty
+            elif len(face.mar_history) == 0:
+                # Has mesh but no MAR yet - small penalty, will resolve soon
+                score -= 2.0
             
             # RECENT SPEAKER BONUS - key for handling pauses
             # Give significant bonus to whoever was speaking recently (within ~3 seconds)
@@ -1181,28 +1146,36 @@ class VideoProcessor:
                 # 7. Write frame
                 writer.write(cropped)
                 
-                # 8. Preview
+                # 8. Preview (with fallback if GUI not available)
                 if preview or debug:
-                    # Show cropped output
-                    preview_h = 720
-                    preview_w = int(preview_h * out_w / out_h)
-                    preview_frame = cv2.resize(cropped, (preview_w, preview_h))
-                    cv2.imshow("Output Preview", preview_frame)
-                    
-                    if debug:
-                        # Also show full frame with overlays
-                        debug_full = self._draw_debug_fullframe(
-                            frame.copy(), faces, speaker_id, crop
-                        )
-                        debug_full = cv2.resize(debug_full, (960, 540))
-                        cv2.imshow("Full Frame Debug", debug_full)
-                    
-                    key = cv2.waitKey(1) & 0xFF
-                    if key == ord('q'):
-                        print("[INFO] Stopped by user")
-                        break
-                    elif key == ord(' '):
-                        cv2.waitKey(0)
+                    try:
+                        # Show cropped output
+                        preview_h = 720
+                        preview_w = int(preview_h * out_w / out_h)
+                        preview_frame = cv2.resize(cropped, (preview_w, preview_h))
+                        cv2.imshow("Output Preview", preview_frame)
+                        
+                        if debug:
+                            # Also show full frame with overlays
+                            debug_full = self._draw_debug_fullframe(
+                                frame.copy(), faces, speaker_id, crop
+                            )
+                            debug_full = cv2.resize(debug_full, (960, 540))
+                            cv2.imshow("Full Frame Debug", debug_full)
+                        
+                        key = cv2.waitKey(1) & 0xFF
+                        if key == ord('q'):
+                            print("[INFO] Stopped by user")
+                            break
+                        elif key == ord(' '):
+                            cv2.waitKey(0)
+                    except cv2.error:
+                        # GUI not available (headless OpenCV)
+                        if frame_count == 1:
+                            print("[WARNING] Preview disabled - OpenCV has no GUI support")
+                            print("[TIP] Install opencv-python instead of opencv-python-headless:")
+                            print("      pip uninstall opencv-python-headless && pip install opencv-python")
+                        preview = False  # Disable preview for remaining frames
                 
                 # Progress
                 if frame_count % 100 == 0:
@@ -1217,8 +1190,10 @@ class VideoProcessor:
             cap.release()
             writer.release()
             face_detector.close()
-            if preview or debug:
+            try:
                 cv2.destroyAllWindows()
+            except cv2.error:
+                pass  # GUI not available
         
         elapsed = time.time() - start_time
         print(f"[INFO] Processed {frame_count} frames in {elapsed:.1f}s "
@@ -1281,21 +1256,28 @@ class VideoProcessor:
             elif face.is_speaking:
                 color = (0, 255, 255)  # Yellow for speaking but not selected
                 thickness = 2
+            elif face.is_moving:
+                color = (0, 165, 255)  # Orange for moving but not speaking
+                thickness = 2
             else:
-                color = (255, 0, 0)  # Blue for silent
+                color = (255, 0, 0)  # Blue for silent/still
                 thickness = 1
             
             cv2.rectangle(debug, (x1, y1), (x2, y2), color, thickness)
             
-            # Label - show mesh status to debug matching
+            # Label - show detection quality
             label = f"ID:{fid}"
             if face.is_speaking:
                 label += " SPEAKING"
+            elif face.is_moving:
+                label += " MOVING"
             elif face.was_recently_speaking:
                 label += " (recent)"
             label += f" MAR:{face.mar:.2f}"
+            if face.motion_score > 0:
+                label += f" M:{face.motion_score:.1f}"
             if not face.from_mesh:
-                label += " [NO MESH]"  # Warn when no mouth tracking
+                label += " [5pt]"  # Only has 5-point landmarks (basic)
             
             cv2.putText(debug, label, (x1, y1 - 5),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)

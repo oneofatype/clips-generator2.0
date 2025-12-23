@@ -1,0 +1,132 @@
+{
+  "text": "One telling me like you guys know nothing. What you're going to do doesn't work. We need to.",
+  "words": [
+    {
+      "text": "One",
+      "start": 80,
+      "end": 320,
+      "confidence": 0.8588867,
+      "highlight": false
+    },
+    {
+      "text": "telling",
+      "start": 400,
+      "end": 720,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "me",
+      "start": 720,
+      "end": 840,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "like",
+      "start": 840,
+      "end": 1040,
+      "confidence": 0.7949219,
+      "highlight": false
+    },
+    {
+      "text": "you",
+      "start": 1040,
+      "end": 1200,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "guys",
+      "start": 1200,
+      "end": 1440,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "know",
+      "start": 1440,
+      "end": 1680,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "nothing",
+      "start": 1680,
+      "end": 2080,
+      "confidence": 0.90405273,
+      "highlight": true
+    },
+    {
+      "text": "What",
+      "start": 2080,
+      "end": 2360,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "you're",
+      "start": 2360,
+      "end": 2560,
+      "confidence": 0.97054034,
+      "highlight": false
+    },
+    {
+      "text": "going",
+      "start": 2560,
+      "end": 2640,
+      "confidence": 0.98583984,
+      "highlight": false
+    },
+    {
+      "text": "to",
+      "start": 2640,
+      "end": 2720,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "do",
+      "start": 2720,
+      "end": 2840,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "doesn't",
+      "start": 2840,
+      "end": 3160,
+      "confidence": 0.9980469,
+      "highlight": false
+    },
+    {
+      "text": "work",
+      "start": 3160,
+      "end": 3400,
+      "confidence": 1.0,
+      "highlight": true
+    },
+    {
+      "text": "We",
+      "start": 3400,
+      "end": 3640,
+      "confidence": 0.96191406,
+      "highlight": false
+    },
+    {
+      "text": "need",
+      "start": 3640,
+      "end": 3800,
+      "confidence": 0.9995117,
+      "highlight": true
+    },
+    {
+      "text": "to",
+      "start": 3800,
+      "end": 4080,
+      "confidence": 0.9970703,
+      "highlight": false
+    }
+  ],
+  "duration_ms": 6000
+}

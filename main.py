@@ -46,6 +46,9 @@ from face_tracker import VideoProcessor, Config
 from subgen import create_glow_text_image
 from hook_generator import HookGeneratorCrew, HookRenderer, HookResult
 from youtube_uploader import YouTubeUploader, YouTubeConfig, VideoMetadataGenerator
+from speaker_overlay import SpeakerInfo, create_speaker_info_ass, apply_speaker_overlay_ffmpeg
+from instagram_uploader import InstagramUploader, InstagramConfig
+from hook_discord_selector import run_music_selector_bot, MusicSelectionResult
 
 
 # =============================================================================
@@ -88,11 +91,51 @@ class PipelineConfig:
     enable_hook_generation: bool = True  # Enable/disable hook generation
     hook_font_size: int = 48  # Font size for HOOK text (bigger than subtitles)
     hook_position_ratio: float = 0.10  # Position from top (within gradient)
+    hook_width_ratio: float = 0.90  # Hook covers 90% of video width
+    hook_prefix: str = "$8B Fintech CEO: "  # Prefix to add before the hook text
+    use_discord_for_hooks: bool = True  # Use Discord for hook selection
+    discord_hook_timeout: int = 1200  # Seconds to wait for Discord response (20 min)
+    
+    # Logo settings
+    logos_folder: str = "logos"  # Folder containing logo images
+    logo_white: str = "logo-white.png"  # White logo for dark backgrounds
+    logo_black: str = "logo-black.png"  # Black/dark logo for light backgrounds
+    logo_width_ratio: float = 0.45  # Logo covers 30% of video width
+    logo_margin_right: int = 20  # Pixels from right edge
+    logo_margin_bottom: int = 20  # Pixels from bottom edge
+    
+    # Speaker info overlay settings (animated text at bottom of video)
+    enable_speaker_overlay: bool = False  # DISABLED - speaker info overlay
+    speaker_name: str = "Jack Zhang"  # Speaker's name
+    speaker_title: str = "Co-founder of Airwallex"  # Speaker's title/role
+    speaker_net_worth: str = "($8,000,000,000 Net Worth)"  # Net worth info ($ will be red)
+    speaker_font_size_ratio: float = 0.038 # Font size as 1.6% of video width (reduced by 80%)
+    speaker_position_from_bottom: float = 0.22  # 25% from bottom
+    speaker_start_time: float = 0.5  # When the animation starts (seconds)
+    speaker_display_duration: float = 9999.0  # Stay visible forever (entire video duration)
     
     # YouTube upload settings
     enable_youtube_upload: bool = False  # Enable/disable YouTube upload
     youtube_client_secret: str = "virtualrealm_ytdata_api_client_secret.json"
     youtube_privacy: str = "public"  # public, private, or unlisted
+    youtube_mention: str = "@airwallex"  # Mention to add to YouTube title
+    
+    # Instagram upload settings
+    enable_instagram_upload: bool = False  # Enable/disable Instagram upload
+    instagram_tags: list = None  # Tags for Instagram caption
+    instagram_audio_name: str = "Original Audio"  # Audio attribution
+    instagram_thumb_offset: int = 500  # Thumbnail offset in ms
+    
+    # Background music settings
+    enable_bg_music: bool = True  # Enable/disable background music
+    default_bg_music: str = "bg_music.mp3"  # Default background music file
+    bg_music_volume: float = 0.15  # Background music volume (0.0 to 1.0)
+    use_discord_for_music: bool = True  # Use Discord for music selection
+    discord_music_timeout: int = 1200  # Seconds to wait for Discord music selection
+    
+    def __post_init__(self):
+        if self.instagram_tags is None:
+            self.instagram_tags = ["@airwallex", "@awxblackjz"]
     
 
 # =============================================================================
@@ -639,6 +682,7 @@ class SubtitleOverlay:
         """
         Apply a dark black to transparent gradient at the top of the frame.
         Gradient size is based on hook image height if provided.
+        Uses smooth blending to avoid visible cutoff lines.
         
         Args:
             frame: Video frame (BGR)
@@ -655,30 +699,41 @@ class SubtitleOverlay:
         if hook_image is not None:
             hook_height = hook_image.shape[0]
             # Gradient covers: y_position + hook_height + padding for fade
-            gradient_height = y_position + hook_height + padding
+            # Add extra fade zone for smooth blending
+            gradient_height = y_position + hook_height + padding + 60  # Extra smooth fade
         else:
-            # Fallback: 20% of frame height
-            gradient_height = int(frame_height * 0.20)
+            # Fallback: 25% of frame height for better fade
+            gradient_height = int(frame_height * 0.25)
         
         # Ensure gradient doesn't exceed frame height
         gradient_height = min(gradient_height, frame_height)
         
-        # Solid black portion at very top (first 40% of gradient area)
-        solid_black_height = int(gradient_height * 0.4)
+        # Solid black portion at very top (first 30% of gradient area - reduced for smoother blend)
+        solid_black_height = int(gradient_height * 0.30)
         
         # Apply solid black to top portion
         frame[:solid_black_height] = 0  # Fully black
         
         # Create gradient for remaining portion
-        # Use power curve (exponent < 1) to keep it darker longer before fading
+        # Use a smoother sigmoid-like curve for natural fade
         fade_height = gradient_height - solid_black_height
         if fade_height > 0:
             for y in range(solid_black_height, gradient_height):
                 # Calculate normalized position within fade zone (0 to 1)
                 fade_progress = (y - solid_black_height) / fade_height
-                # Power curve: stays darker longer, then fades more quickly at the end
-                alpha = (1.0 - fade_progress) ** 0.5
-                # Apply darkening to the row
+                
+                # Use a smooth curve that starts slow, accelerates, then slows down
+                # This creates a more natural blend without harsh cutoff
+                # Using a combination of smooth-step and ease-out for better results
+                # Smooth-step: 3x^2 - 2x^3 creates smooth S-curve
+                smooth_progress = fade_progress * fade_progress * (3.0 - 2.0 * fade_progress)
+                
+                # Calculate alpha (1.0 = full black, 0.0 = transparent)
+                # Invert so we fade FROM dark TO transparent
+                alpha = 1.0 - smooth_progress
+                
+                # Apply the darkening as a blend with black
+                # This avoids the harsh line by gradually reducing the intensity
                 frame[y] = (frame[y] * (1 - alpha)).astype(np.uint8)
         
         return frame
@@ -874,14 +929,15 @@ class PodcastToShortsPipeline:
                 )
                 print(f"[INFO] Loaded hook: {hook_result.hook_text}")
                 
-                # Create hook image
+                # Create hook image - width will be set dynamically based on video width
                 hook_renderer = HookRenderer(
                     font_path=self.config.font_path,
                     font_size=self.config.hook_font_size
                 )
+                # Placeholder max_width - will be recalculated when we know video dimensions
                 hook_image = hook_renderer.create_hook_image(
                     hook_result,
-                    max_width=380
+                    max_width=500  # Will be adjusted later based on video width
                 )
                 print("[INFO] Hook image created from cached data")
             else:
@@ -1012,20 +1068,29 @@ class PodcastToShortsPipeline:
             if self.config.enable_hook_generation and transcription_data and self.gemini_key:
                 try:
                     hook_crew = HookGeneratorCrew(self.gemini_key)
-                    hook_result = hook_crew.generate_hook(transcription_data['text'])
+                    hook_result = hook_crew.generate_hook(
+                        transcription_data['text'],
+                        use_discord=self.config.use_discord_for_hooks,
+                        discord_timeout=self.config.discord_hook_timeout
+                    )
+                    
+                    # Set the hook prefix from config
+                    hook_result.prefix = self.config.hook_prefix
                     
                     print(f"[INFO] Generated hook: {hook_result.hook_text}")
-                    print(f"[INFO] Subject (Yellow): {hook_result.subject_word}")
-                    print(f"[INFO] Object (Purple): {hook_result.object_word}")
+                    print(f"[INFO] Hook prefix: {hook_result.prefix}")
+                    print(f"[INFO] Subject (Yellow): {hook_result.subject_words}")
+                    print(f"[INFO] Object (Purple): {hook_result.object_words}")
                     
-                    # Create hook image with smaller width for proper centering
+                    # Create hook image - width will be set dynamically based on video width
                     hook_renderer = HookRenderer(
                         font_path=self.config.font_path,
                         font_size=self.config.hook_font_size
                     )
+                    # Placeholder max_width - will be adjusted later based on video width
                     hook_image = hook_renderer.create_hook_image(
                         hook_result,
-                        max_width=380  # Smaller width for vertical video centering
+                        max_width=500  # Will be adjusted later based on video width
                     )
                     print("[INFO] Hook image created successfully")
                     
@@ -1037,8 +1102,9 @@ class PodcastToShortsPipeline:
                     with open(hook_path, 'w', encoding='utf-8') as f:
                         json.dump({
                             'hook_text': hook_result.hook_text,
-                            'subject_word': hook_result.subject_word,
-                            'object_word': hook_result.object_word,
+                            'prefix': hook_result.prefix,
+                            'subject_words': hook_result.subject_words,
+                            'object_words': hook_result.object_words,
                             'scores': hook_result.scores,
                             'reasoning': hook_result.reasoning
                         }, f, indent=2, ensure_ascii=False)
@@ -1078,7 +1144,8 @@ class PodcastToShortsPipeline:
                 output_video_path,
                 transcription_data['words'],
                 word_images,
-                hook_image=hook_image
+                hook_image=hook_image,
+                hook_result=hook_result  # Pass hook_result for dynamic width calculation
             )
         else:
             # No transcription - just copy the vertical video
@@ -1088,17 +1155,73 @@ class PodcastToShortsPipeline:
         # Cleanup: Delete word images folder contents
         self._cleanup_word_images()
         
-        # Step 8: Upload to YouTube (optional)
+        # Step 8: Add background music (optional)
+        if self.config.enable_bg_music:
+            print("\n" + "="*60)
+            print("STEP 7: Adding Background Music")
+            print("="*60)
+            
+            # Get music selection (Discord or default)
+            music_path = self._select_background_music()
+            
+            if music_path and os.path.exists(music_path):
+                # Create temp path for video with music
+                video_with_music = os.path.join(
+                    self.config.temp_folder,
+                    f"{video_name}_with_music.mp4"
+                )
+                
+                # Mix background music
+                success = self._add_background_music(
+                    output_video_path,
+                    music_path,
+                    video_with_music
+                )
+                
+                if success:
+                    # Replace original output with music version
+                    shutil.move(video_with_music, output_video_path)
+                    print(f"[SUCCESS] Background music added from: {music_path}")
+                else:
+                    print("[WARNING] Failed to add background music, using original video")
+            else:
+                print(f"[WARNING] Music file not found: {music_path}")
+        
+        # Step 9: Upload to YouTube (optional)
         youtube_result = None
+        youtube_caption = None
         if self.config.enable_youtube_upload:
             print("\n" + "="*60)
-            print("STEP 7: Uploading to YouTube")
+            print("STEP 8: Uploading to YouTube")
             print("="*60)
             
             youtube_result = self._upload_to_youtube(
                 output_video_path,
                 transcription_data,
                 hook_result
+            )
+            
+            # Store caption for Instagram
+            if youtube_result and youtube_result.get('metadata'):
+                youtube_caption = youtube_result['metadata'].get('description', '')
+        
+        # Step 10: Upload to Instagram (optional)
+        instagram_result = None
+        if self.config.enable_instagram_upload:
+            print("\n" + "="*60)
+            print("STEP 9: Uploading to Instagram")
+            print("="*60)
+            
+            # Use YouTube caption if available, otherwise create a basic one
+            caption = youtube_caption or "Sharp insights that challenge conventional thinking."
+            title = ""
+            if youtube_result and youtube_result.get('metadata'):
+                title = youtube_result['metadata'].get('title', '')
+            
+            instagram_result = self._upload_to_instagram(
+                output_video_path,
+                caption,
+                title
             )
         
         print("\n" + "="*60)
@@ -1108,6 +1231,9 @@ class PodcastToShortsPipeline:
         
         if youtube_result and youtube_result.get('success'):
             print(f"[SUCCESS] YouTube URL: {youtube_result.get('url')}")
+        
+        if instagram_result and instagram_result.get('permalink'):
+            print(f"[SUCCESS] Instagram URL: {instagram_result.get('permalink')}")
         
         return output_video_path
     
@@ -1143,14 +1269,40 @@ class PodcastToShortsPipeline:
             
             uploader = YouTubeUploader(yt_config)
             
-            # Upload with AI-generated metadata
-            result = uploader.upload_short(
+            # Generate metadata first using Gemini
+            api_key = self.gemini_key or os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+            
+            if api_key:
+                generator = VideoMetadataGenerator(api_key)
+                metadata = generator.generate_metadata(transcript, hook_text)
+            else:
+                print("[WARNING] No Gemini API key, using default metadata")
+                metadata = {
+                    'title': "You Won't Believe This! 🔥 #Shorts",
+                    'description': "Sharp insights that challenge conventional wisdom and drive growth.",
+                    'tags': ['shorts', 'viral', 'trending']
+                }
+            
+            # Add YouTube mention to title if configured
+            if self.config.youtube_mention:
+                original_title = metadata['title']
+                metadata['title'] = f"{self.config.youtube_mention} {original_title}"
+                print(f"[INFO] Added mention to title: {metadata['title']}")
+            
+            # Upload with custom metadata (bypassing upload_short's metadata generation)
+            result = uploader.upload_video(
                 video_path=video_path,
-                transcript=transcript,
-                hook=hook_text,
-                gemini_api_key=self.gemini_key,
+                title=metadata['title'],
+                description=metadata['description'],
+                tags=metadata['tags'],
                 privacy_status=self.config.youtube_privacy
             )
+            
+            # Add metadata to result
+            result['metadata'] = metadata
+            
+            # Save upload record
+            uploader._save_upload_record(video_path, result)
             
             return result
             
@@ -1159,6 +1311,150 @@ class PodcastToShortsPipeline:
             import traceback
             traceback.print_exc()
             return {'success': False, 'error': str(e)}
+    
+    def _upload_to_instagram(self, video_path: str, caption: str, title: str = "") -> Optional[Dict]:
+        """
+        Upload the final video to Instagram Reels.
+        
+        Args:
+            video_path: Path to the final video
+            caption: Caption for the Reel (typically the YouTube description)
+            title: Title for logging purposes
+            
+        Returns:
+            Instagram upload result dictionary with media_id and permalink
+        """
+        try:
+            # Configure Instagram uploader
+            ig_config = InstagramConfig(
+                thumb_offset=self.config.instagram_thumb_offset,
+                audio_name=self.config.instagram_audio_name,
+                tags=self.config.instagram_tags
+            )
+            
+            uploader = InstagramUploader(ig_config)
+            
+            # Upload to Instagram
+            result = uploader.upload(
+                video_path=video_path,
+                caption=caption,
+                title=title
+            )
+            
+            return result
+            
+        except Exception as e:
+            print(f"[ERROR] Instagram upload failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    def _select_background_music(self) -> str:
+        """
+        Select background music via Discord or use default.
+        
+        Returns:
+            Path to the music file to use
+        """
+        default_music = self.config.default_bg_music
+        
+        # Check if Discord selection is enabled
+        if self.config.use_discord_for_music:
+            try:
+                print(f"[MUSIC] Posting music selection to Discord (timeout: {self.config.discord_music_timeout}s)...")
+                
+                result = run_music_selector_bot(
+                    default_music_path=default_music,
+                    timeout_seconds=self.config.discord_music_timeout,
+                    download_folder=self.config.temp_folder
+                )
+                
+                if result.is_custom:
+                    print(f"[MUSIC] Using custom music: {result.music_path}")
+                    if result.source_url:
+                        print(f"[MUSIC] Source: {result.source_url}")
+                elif result.timed_out:
+                    print(f"[MUSIC] Discord timed out, using default: {default_music}")
+                else:
+                    print(f"[MUSIC] User selected default music: {default_music}")
+                
+                return result.music_path
+                
+            except Exception as e:
+                print(f"[MUSIC] Discord error: {e}, using default music")
+                return default_music
+        else:
+            print(f"[MUSIC] Discord disabled, using default: {default_music}")
+            return default_music
+    
+    def _add_background_music(self, video_path: str, music_path: str, output_path: str) -> bool:
+        """
+        Add background music to video while preserving original audio.
+        
+        Args:
+            video_path: Path to the input video
+            music_path: Path to the background music file
+            output_path: Path for the output video
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        import subprocess
+        
+        # Find FFmpeg
+        ffmpeg_cmd = "ffmpeg"
+        for path in ["ffmpeg", "ffmpeg.exe", r"C:\ffmpeg\bin\ffmpeg.exe"]:
+            try:
+                subprocess.run([path, "-version"], capture_output=True, check=True)
+                ffmpeg_cmd = path
+                break
+            except:
+                continue
+        
+        try:
+            # Get video duration
+            probe_cmd = [
+                ffmpeg_cmd, "-i", video_path,
+                "-f", "null", "-"
+            ]
+            result = subprocess.run(probe_cmd, capture_output=True, text=True)
+            
+            # Volume for background music (lower to not overpower speech)
+            bg_volume = self.config.bg_music_volume
+            
+            # FFmpeg command to mix audio
+            # - Takes video input
+            # - Takes music input, loops if necessary
+            # - Mixes original audio with background music at reduced volume
+            cmd = [
+                ffmpeg_cmd,
+                "-y",
+                "-i", video_path,  # Input video
+                "-stream_loop", "-1",  # Loop music if shorter than video
+                "-i", music_path,  # Background music
+                "-filter_complex",
+                f"[1:a]volume={bg_volume}[music];[0:a][music]amix=inputs=2:duration=first:dropout_transition=2[aout]",
+                "-map", "0:v",  # Use video from first input
+                "-map", "[aout]",  # Use mixed audio
+                "-c:v", "copy",  # Copy video codec (no re-encoding)
+                "-c:a", "aac",  # Encode audio as AAC
+                "-b:a", "192k",
+                "-shortest",  # End when shortest input ends
+                output_path
+            ]
+            
+            print(f"[MUSIC] Mixing background music (volume: {bg_volume})...")
+            subprocess.run(cmd, check=True, capture_output=True)
+            
+            print(f"[MUSIC] Successfully added background music")
+            return True
+            
+        except subprocess.CalledProcessError as e:
+            print(f"[MUSIC] FFmpeg error: {e.stderr.decode() if e.stderr else str(e)}")
+            return False
+        except Exception as e:
+            print(f"[MUSIC] Error adding background music: {e}")
+            return False
     
     def _cleanup_word_images(self):
         """Delete all images from the word_images folder."""
@@ -1173,11 +1469,161 @@ class PodcastToShortsPipeline:
             except Exception as e:
                 print(f"[WARNING] Failed to cleanup word images: {e}")
     
+    def _load_logos(self, frame_width: int, frame_height: int) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+        """
+        Load and resize logo images for overlay.
+        
+        Args:
+            frame_width: Video frame width
+            frame_height: Video frame height
+            
+        Returns:
+            Tuple of (white_logo, black_logo) as numpy arrays with alpha channel
+        """
+        logo_white = None
+        logo_black = None
+        
+        # Calculate target logo width (30% of video width)
+        target_width = int(frame_width * self.config.logo_width_ratio)
+        
+        # Load white logo
+        white_path = os.path.join(self.config.logos_folder, self.config.logo_white)
+        if os.path.exists(white_path):
+            logo_white = cv2.imread(white_path, cv2.IMREAD_UNCHANGED)
+            if logo_white is not None:
+                # Resize maintaining aspect ratio
+                h, w = logo_white.shape[:2]
+                scale = target_width / w
+                new_h = int(h * scale)
+                logo_white = cv2.resize(logo_white, (target_width, new_h), interpolation=cv2.INTER_AREA)
+                print(f"[INFO] Loaded white logo: {target_width}x{new_h}")
+        else:
+            print(f"[WARNING] White logo not found: {white_path}")
+        
+        # Load black logo
+        black_path = os.path.join(self.config.logos_folder, self.config.logo_black)
+        if os.path.exists(black_path):
+            logo_black = cv2.imread(black_path, cv2.IMREAD_UNCHANGED)
+            if logo_black is not None:
+                # Resize maintaining aspect ratio
+                h, w = logo_black.shape[:2]
+                scale = target_width / w
+                new_h = int(h * scale)
+                logo_black = cv2.resize(logo_black, (target_width, new_h), interpolation=cv2.INTER_AREA)
+                print(f"[INFO] Loaded black logo: {target_width}x{new_h}")
+        else:
+            print(f"[WARNING] Black logo not found: {black_path}")
+        
+        return logo_white, logo_black
+    
+    def _detect_background_brightness(self, frame: np.ndarray, logo_width: int, logo_height: int,
+                                        margin_right: int, margin_bottom: int) -> bool:
+        """
+        Detect if the background where logo will be placed is dark or light.
+        
+        Args:
+            frame: Video frame (BGR)
+            logo_width: Width of the logo
+            logo_height: Height of the logo
+            margin_right: Right margin for logo placement
+            margin_bottom: Bottom margin for logo placement
+            
+        Returns:
+            True if background is dark (use white logo), False if light (use black logo)
+        """
+        frame_h, frame_w = frame.shape[:2]
+        
+        # Calculate logo placement region
+        x_start = frame_w - logo_width - margin_right
+        y_start = frame_h - logo_height - margin_bottom
+        x_end = frame_w - margin_right
+        y_end = frame_h - margin_bottom
+        
+        # Clamp to valid region
+        x_start = max(0, x_start)
+        y_start = max(0, y_start)
+        x_end = min(frame_w, x_end)
+        y_end = min(frame_h, y_end)
+        
+        # Extract the region where logo will be placed
+        region = frame[y_start:y_end, x_start:x_end]
+        
+        if region.size == 0:
+            return True  # Default to dark background
+        
+        # Convert to grayscale and calculate mean brightness
+        gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
+        mean_brightness = np.mean(gray)
+        
+        # Threshold: if brightness < 128, consider it dark
+        return mean_brightness < 128
+    
+    def _overlay_logo(self, frame: np.ndarray, logo: np.ndarray,
+                      margin_right: int, margin_bottom: int) -> np.ndarray:
+        """
+        Overlay logo on the bottom-right corner of the frame.
+        
+        Args:
+            frame: Video frame (BGR)
+            logo: Logo image with alpha channel (BGRA)
+            margin_right: Pixels from right edge
+            margin_bottom: Pixels from bottom edge
+            
+        Returns:
+            Frame with logo overlay
+        """
+        if logo is None:
+            return frame
+        
+        frame_h, frame_w = frame.shape[:2]
+        logo_h, logo_w = logo.shape[:2]
+        
+        # Calculate position (bottom-right corner)
+        x = frame_w - logo_w - margin_right
+        y = frame_h - logo_h - margin_bottom
+        
+        # Clamp position
+        if x < 0:
+            logo = logo[:, -x:]
+            logo_w = logo.shape[1]
+            x = 0
+        if y < 0:
+            logo = logo[-y:, :]
+            logo_h = logo.shape[0]
+            y = 0
+        
+        # Clamp size
+        if x + logo_w > frame_w:
+            logo = logo[:, :frame_w - x]
+            logo_w = logo.shape[1]
+        if y + logo_h > frame_h:
+            logo = logo[:frame_h - y, :]
+            logo_h = logo.shape[0]
+        
+        if logo_w <= 0 or logo_h <= 0:
+            return frame
+        
+        # Extract alpha channel if present
+        if logo.shape[2] == 4:
+            alpha = logo[:, :, 3] / 255.0
+            alpha = np.stack([alpha] * 3, axis=-1)
+            logo_rgb = logo[:, :, :3]
+            
+            # Blend
+            roi = frame[y:y+logo_h, x:x+logo_w]
+            blended = (alpha * logo_rgb + (1 - alpha) * roi).astype(np.uint8)
+            frame[y:y+logo_h, x:x+logo_w] = blended
+        else:
+            frame[y:y+logo_h, x:x+logo_w] = logo
+        
+        return frame
+    
     def _add_subtitles_to_video(self, input_path: str, output_path: str,
                                  words: List[Dict], word_images: Dict[str, str],
-                                 hook_image: Optional[np.ndarray] = None):
+                                 hook_image: Optional[np.ndarray] = None,
+                                 hook_result: Optional['HookResult'] = None):
         """
-        Add subtitle overlays and hook to video.
+        Add subtitle overlays, hook, and logo to video.
         
         Args:
             input_path: Input video path
@@ -1185,6 +1631,7 @@ class PodcastToShortsPipeline:
             words: Word list with timestamps
             word_images: Dictionary mapping words to image paths
             hook_image: Optional hook image to overlay at top (BGRA numpy array)
+            hook_result: Optional hook result for regenerating hook with correct width
         """
         print(f"[INFO] Adding subtitles to video...")
         if hook_image is not None:
@@ -1202,6 +1649,33 @@ class PodcastToShortsPipeline:
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         
         print(f"[INFO] Video: {frame_width}x{frame_height} @ {fps:.2f} FPS")
+        
+        # Regenerate hook image with correct width (80% of video width)
+        if hook_result is not None:
+            hook_max_width = int(frame_width * self.config.hook_width_ratio)
+            hook_renderer = HookRenderer(
+                font_path=self.config.font_path,
+                font_size=self.config.hook_font_size
+            )
+            hook_image = hook_renderer.create_hook_image(
+                hook_result,
+                max_width=hook_max_width
+            )
+            print(f"[INFO] Hook regenerated with width: {hook_max_width}px (80% of {frame_width}px)")
+        
+        # Load logos
+        logo_white, logo_black = self._load_logos(frame_width, frame_height)
+        has_logos = logo_white is not None or logo_black is not None
+        if has_logos:
+            print(f"[INFO] Logo overlay enabled (30% of video width)")
+        
+        # Get logo dimensions for brightness detection
+        logo_height = 0
+        logo_width = 0
+        if logo_white is not None:
+            logo_height, logo_width = logo_white.shape[:2]
+        elif logo_black is not None:
+            logo_height, logo_width = logo_black.shape[:2]
         
         # Create temp file in output directory (avoid temp folder permission issues)
         output_dir = os.path.dirname(os.path.abspath(output_path))
@@ -1227,7 +1701,7 @@ class PodcastToShortsPipeline:
         overlay = SubtitleOverlay(self.config, word_images)
         
         # Initialize hook renderer for overlay
-        hook_renderer = HookRenderer(
+        hook_renderer_overlay = HookRenderer(
             font_path=self.config.font_path,
             font_size=self.config.hook_font_size
         ) if hook_image is not None else None
@@ -1250,6 +1724,19 @@ class PodcastToShortsPipeline:
                 self.config.words_per_subtitle
             )
             
+            # Detect background brightness and select appropriate logo BEFORE other overlays
+            if has_logos and logo_width > 0:
+                is_dark_bg = self._detect_background_brightness(
+                    frame, logo_width, logo_height,
+                    self.config.logo_margin_right, self.config.logo_margin_bottom
+                )
+                current_logo = logo_white if is_dark_bg else logo_black
+                # Fallback if one logo is missing
+                if current_logo is None:
+                    current_logo = logo_white or logo_black
+            else:
+                current_logo = None
+            
             # Apply top gradient (sized to match hook image)
             frame = overlay.apply_top_gradient(
                 frame, 
@@ -1259,8 +1746,8 @@ class PodcastToShortsPipeline:
             )
             
             # Overlay hook at top (fixed 30px from top, within gradient area)
-            if hook_image is not None:
-                frame = hook_renderer.overlay_hook_on_frame(
+            if hook_image is not None and hook_renderer_overlay is not None:
+                frame = hook_renderer_overlay.overlay_hook_on_frame(
                     frame, hook_image, 
                     y_position=30  # Fixed pixel position from top
                 )
@@ -1268,6 +1755,14 @@ class PodcastToShortsPipeline:
             # Overlay subtitle
             if active_words:
                 frame = overlay.overlay_subtitle(frame, active_words, 0)
+            
+            # Overlay logo on bottom-right corner
+            if current_logo is not None:
+                frame = self._overlay_logo(
+                    frame, current_logo,
+                    self.config.logo_margin_right,
+                    self.config.logo_margin_bottom
+                )
             
             writer.write(frame)
             
@@ -1289,8 +1784,9 @@ class PodcastToShortsPipeline:
         
         print(f"[INFO] Adding audio track...")
         
-        # Combine with audio using FFMPEG
-        self._encode_with_audio(input_path, temp_video_path, output_path)
+        # Combine with audio using FFMPEG (pass video dimensions for speaker overlay)
+        self._encode_with_audio(input_path, temp_video_path, output_path, 
+                                video_width=frame_width, video_height=frame_height)
         
         # Cleanup
         try:
@@ -1299,8 +1795,18 @@ class PodcastToShortsPipeline:
             pass
     
     def _encode_with_audio(self, original_video: str, processed_video: str,
-                           output_path: str):
-        """Combine processed video with original audio using FFMPEG."""
+                           output_path: str, video_width: int = 0, video_height: int = 0):
+        """
+        Combine processed video with original audio using FFMPEG.
+        Optionally adds speaker info overlay if enabled in config.
+        
+        Args:
+            original_video: Original video for audio track
+            processed_video: Processed video with overlays
+            output_path: Final output path
+            video_width: Video width for speaker overlay
+            video_height: Video height for speaker overlay
+        """
         import subprocess
         
         # Try to find FFMPEG
@@ -1311,22 +1817,78 @@ class PodcastToShortsPipeline:
             shutil.copy(processed_video, output_path)
             return
         
-        cmd = [
-            ffmpeg_cmd,
-            '-y',
-            '-i', processed_video,
-            '-i', original_video,
-            '-c:v', 'libx264',
-            '-preset', 'medium',
-            '-crf', '23',
-            '-c:a', 'aac',
-            '-b:a', '192k',
-            '-map', '0:v:0',
-            '-map', '1:a:0?',
-            '-shortest',
-            '-movflags', '+faststart',
-            output_path
-        ]
+        # Check if speaker overlay is enabled and we have dimensions
+        ass_file = None
+        if self.config.enable_speaker_overlay and video_width > 0 and video_height > 0:
+            try:
+                # Create speaker info
+                speaker_info = SpeakerInfo(
+                    name=self.config.speaker_name,
+                    title=self.config.speaker_title,
+                    net_worth=self.config.speaker_net_worth
+                )
+                
+                # Create .ass file in temp folder
+                ass_file = os.path.join(
+                    self.config.temp_folder,
+                    f"speaker_overlay_{os.getpid()}.ass"
+                )
+                
+                create_speaker_info_ass(
+                    speaker_info=speaker_info,
+                    output_filename=ass_file,
+                    width=video_width,
+                    height=video_height,
+                    start_time_seconds=self.config.speaker_start_time,
+                    display_duration=self.config.speaker_display_duration,
+                    font_size_ratio=self.config.speaker_font_size_ratio,
+                    position_from_bottom_ratio=self.config.speaker_position_from_bottom
+                )
+                print(f"[INFO] Speaker overlay .ass file created")
+            except Exception as e:
+                print(f"[WARNING] Failed to create speaker overlay: {e}")
+                ass_file = None
+        
+        # Build FFmpeg command
+        if ass_file and os.path.exists(ass_file):
+            # Escape the ass file path for FFmpeg filter (Windows compatibility)
+            ass_escaped = ass_file.replace('\\', '/').replace(':', '\\:')
+            
+            cmd = [
+                ffmpeg_cmd,
+                '-y',
+                '-i', processed_video,
+                '-i', original_video,
+                '-vf', f"ass='{ass_escaped}'",
+                '-c:v', 'libx264',
+                '-preset', 'medium',
+                '-crf', '23',
+                '-c:a', 'aac',
+                '-b:a', '192k',
+                '-map', '0:v:0',
+                '-map', '1:a:0?',
+                '-shortest',
+                '-movflags', '+faststart',
+                output_path
+            ]
+            print(f"[INFO] Encoding with speaker overlay...")
+        else:
+            cmd = [
+                ffmpeg_cmd,
+                '-y',
+                '-i', processed_video,
+                '-i', original_video,
+                '-c:v', 'libx264',
+                '-preset', 'medium',
+                '-crf', '23',
+                '-c:a', 'aac',
+                '-b:a', '192k',
+                '-map', '0:v:0',
+                '-map', '1:a:0?',
+                '-shortest',
+                '-movflags', '+faststart',
+                output_path
+            ]
         
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
@@ -1335,6 +1897,13 @@ class PodcastToShortsPipeline:
             print(f"[WARNING] FFMPEG failed: {e.stderr}")
             print("[INFO] Copying without audio...")
             shutil.copy(processed_video, output_path)
+        finally:
+            # Cleanup .ass file
+            if ass_file and os.path.exists(ass_file):
+                try:
+                    os.unlink(ass_file)
+                except:
+                    pass
     
     def _find_ffmpeg(self) -> Optional[str]:
         """Find FFMPEG executable."""
@@ -1428,6 +1997,51 @@ def main():
         default="virtualrealm_ytdata_api_client_secret.json",
         help="Path to YouTube OAuth client secret file"
     )
+    parser.add_argument(
+        "--no-discord",
+        action="store_true",
+        help="Disable Discord hook selection (use AI auto-selection)"
+    )
+    parser.add_argument(
+        "--discord-timeout",
+        type=int,
+        default=1200,
+        help="Seconds to wait for Discord hook selection (default: 1200 = 20 min)"
+    )
+    parser.add_argument(
+        "--upload-ig",
+        action="store_true",
+        help="Upload final video to Instagram Reels"
+    )
+    parser.add_argument(
+        "--instagram-tags",
+        type=str,
+        nargs='+',
+        default=["@airwallex", "@awxblackjz"],
+        help="Tags to add to Instagram caption (default: @airwallex @awxblackjz)"
+    )
+    parser.add_argument(
+        "--no-music",
+        action="store_true",
+        help="Disable background music"
+    )
+    parser.add_argument(
+        "--music-file",
+        type=str,
+        default="bg_music.mp3",
+        help="Path to default background music file (default: bg_music.mp3)"
+    )
+    parser.add_argument(
+        "--music-volume",
+        type=float,
+        default=0.15,
+        help="Background music volume 0.0-1.0 (default: 0.15)"
+    )
+    parser.add_argument(
+        "--no-discord-music",
+        action="store_true",
+        help="Disable Discord music selection (use default music directly)"
+    )
     
     args = parser.parse_args()
     
@@ -1440,6 +2054,14 @@ def main():
     config.enable_youtube_upload = args.upload
     config.youtube_privacy = args.privacy
     config.youtube_client_secret = args.youtube_secret
+    config.use_discord_for_hooks = not args.no_discord
+    config.discord_hook_timeout = args.discord_timeout
+    config.enable_instagram_upload = args.upload_ig
+    config.instagram_tags = args.instagram_tags
+    config.enable_bg_music = not args.no_music
+    config.default_bg_music = args.music_file
+    config.bg_music_volume = args.music_volume
+    config.use_discord_for_music = not args.no_discord_music
     
     # Create and run pipeline
     pipeline = PodcastToShortsPipeline(config)

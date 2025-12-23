@@ -1,0 +1,566 @@
+{
+  "text": "If you were 20 years old in today's market, what skills would you learn to become successful? I think the most important skill to learn is critical thinking and first principle problem solving. Because that kind of allow you to just looking at any problems in life and just thinking about what is the most common sense way to think about that problem. How can you break that into different type of smaller problem and solve it by first principle?",
+  "words": [
+    {
+      "text": "If",
+      "start": 80,
+      "end": 200,
+      "confidence": 0.9975586,
+      "highlight": false
+    },
+    {
+      "text": "you",
+      "start": 200,
+      "end": 360,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "were",
+      "start": 360,
+      "end": 560,
+      "confidence": 0.9941406,
+      "highlight": false
+    },
+    {
+      "text": "20",
+      "start": 560,
+      "end": 840,
+      "confidence": 1.0,
+      "highlight": true
+    },
+    {
+      "text": "years",
+      "start": 840,
+      "end": 1120,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "old",
+      "start": 1120,
+      "end": 1440,
+      "confidence": 0.9975586,
+      "highlight": false
+    },
+    {
+      "text": "in",
+      "start": 2000,
+      "end": 2320,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "today's",
+      "start": 2320,
+      "end": 2760,
+      "confidence": 0.9998372,
+      "highlight": false
+    },
+    {
+      "text": "market",
+      "start": 2760,
+      "end": 3040,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "what",
+      "start": 3120,
+      "end": 3400,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "skills",
+      "start": 3400,
+      "end": 3800,
+      "confidence": 0.84375,
+      "highlight": true
+    },
+    {
+      "text": "would",
+      "start": 3800,
+      "end": 3960,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "you",
+      "start": 3960,
+      "end": 4120,
+      "confidence": 0.99902344,
+      "highlight": false
+    },
+    {
+      "text": "learn",
+      "start": 4120,
+      "end": 4400,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "to",
+      "start": 4400,
+      "end": 4600,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "become",
+      "start": 4600,
+      "end": 4800,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "successful",
+      "start": 4800,
+      "end": 5360,
+      "confidence": 0.99902344,
+      "highlight": true
+    },
+    {
+      "text": "I",
+      "start": 5360,
+      "end": 5520,
+      "confidence": 0.9614258,
+      "highlight": false
+    },
+    {
+      "text": "think",
+      "start": 5520,
+      "end": 5680,
+      "confidence": 0.9316406,
+      "highlight": false
+    },
+    {
+      "text": "the",
+      "start": 5680,
+      "end": 5920,
+      "confidence": 0.99902344,
+      "highlight": false
+    },
+    {
+      "text": "most",
+      "start": 5920,
+      "end": 6240,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "important",
+      "start": 6240,
+      "end": 6640,
+      "confidence": 0.9995117,
+      "highlight": true
+    },
+    {
+      "text": "skill",
+      "start": 6720,
+      "end": 7120,
+      "confidence": 1.0,
+      "highlight": true
+    },
+    {
+      "text": "to",
+      "start": 7120,
+      "end": 7320,
+      "confidence": 0.99902344,
+      "highlight": false
+    },
+    {
+      "text": "learn",
+      "start": 7320,
+      "end": 7600,
+      "confidence": 0.9938965,
+      "highlight": false
+    },
+    {
+      "text": "is",
+      "start": 7600,
+      "end": 7920,
+      "confidence": 0.99902344,
+      "highlight": false
+    },
+    {
+      "text": "critical",
+      "start": 8000,
+      "end": 8480,
+      "confidence": 1.0,
+      "highlight": true
+    },
+    {
+      "text": "thinking",
+      "start": 8480,
+      "end": 8840,
+      "confidence": 1.0,
+      "highlight": true
+    },
+    {
+      "text": "and",
+      "start": 8840,
+      "end": 9080,
+      "confidence": 0.73095703,
+      "highlight": false
+    },
+    {
+      "text": "first",
+      "start": 9080,
+      "end": 9400,
+      "confidence": 0.99902344,
+      "highlight": false
+    },
+    {
+      "text": "principle",
+      "start": 9400,
+      "end": 10000,
+      "confidence": 0.9144287,
+      "highlight": false
+    },
+    {
+      "text": "problem",
+      "start": 10800,
+      "end": 11160,
+      "confidence": 0.9995117,
+      "highlight": true
+    },
+    {
+      "text": "solving",
+      "start": 11160,
+      "end": 11680,
+      "confidence": 1.0,
+      "highlight": true
+    },
+    {
+      "text": "Because",
+      "start": 12560,
+      "end": 12880,
+      "confidence": 0.99902344,
+      "highlight": false
+    },
+    {
+      "text": "that",
+      "start": 12880,
+      "end": 13160,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "kind",
+      "start": 13160,
+      "end": 13400,
+      "confidence": 0.90966797,
+      "highlight": false
+    },
+    {
+      "text": "of",
+      "start": 13400,
+      "end": 13560,
+      "confidence": 0.9975586,
+      "highlight": false
+    },
+    {
+      "text": "allow",
+      "start": 13560,
+      "end": 13840,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "you",
+      "start": 13840,
+      "end": 14160,
+      "confidence": 0.9902344,
+      "highlight": false
+    },
+    {
+      "text": "to",
+      "start": 14160,
+      "end": 14440,
+      "confidence": 0.9970703,
+      "highlight": false
+    },
+    {
+      "text": "just",
+      "start": 14440,
+      "end": 14760,
+      "confidence": 0.9946289,
+      "highlight": false
+    },
+    {
+      "text": "looking",
+      "start": 14760,
+      "end": 15120,
+      "confidence": 0.96240234,
+      "highlight": false
+    },
+    {
+      "text": "at",
+      "start": 15120,
+      "end": 15520,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "any",
+      "start": 15600,
+      "end": 15959,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "problems",
+      "start": 15959,
+      "end": 16520,
+      "confidence": 0.9382324,
+      "highlight": false
+    },
+    {
+      "text": "in",
+      "start": 16520,
+      "end": 16680,
+      "confidence": 0.99902344,
+      "highlight": false
+    },
+    {
+      "text": "life",
+      "start": 16680,
+      "end": 16960,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "and",
+      "start": 17200,
+      "end": 17520,
+      "confidence": 0.9921875,
+      "highlight": false
+    },
+    {
+      "text": "just",
+      "start": 17520,
+      "end": 17800,
+      "confidence": 0.99853516,
+      "highlight": false
+    },
+    {
+      "text": "thinking",
+      "start": 17800,
+      "end": 18280,
+      "confidence": 0.9560547,
+      "highlight": true
+    },
+    {
+      "text": "about",
+      "start": 18280,
+      "end": 18560,
+      "confidence": 0.99316406,
+      "highlight": false
+    },
+    {
+      "text": "what",
+      "start": 18800,
+      "end": 19080,
+      "confidence": 0.99902344,
+      "highlight": false
+    },
+    {
+      "text": "is",
+      "start": 19080,
+      "end": 19240,
+      "confidence": 0.99902344,
+      "highlight": false
+    },
+    {
+      "text": "the",
+      "start": 19240,
+      "end": 19440,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "most",
+      "start": 19440,
+      "end": 19720,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "common",
+      "start": 19720,
+      "end": 20120,
+      "confidence": 0.7775879,
+      "highlight": false
+    },
+    {
+      "text": "sense",
+      "start": 20120,
+      "end": 20560,
+      "confidence": 0.76538086,
+      "highlight": false
+    },
+    {
+      "text": "way",
+      "start": 20560,
+      "end": 20960,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "to",
+      "start": 21040,
+      "end": 21360,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "think",
+      "start": 21360,
+      "end": 21560,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "about",
+      "start": 21560,
+      "end": 21760,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "that",
+      "start": 21760,
+      "end": 22000,
+      "confidence": 0.9970703,
+      "highlight": false
+    },
+    {
+      "text": "problem",
+      "start": 22000,
+      "end": 22320,
+      "confidence": 0.9995117,
+      "highlight": true
+    },
+    {
+      "text": "How",
+      "start": 22560,
+      "end": 22840,
+      "confidence": 1.0,
+      "highlight": false
+    },
+    {
+      "text": "can",
+      "start": 22840,
+      "end": 23000,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "you",
+      "start": 23000,
+      "end": 23240,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "break",
+      "start": 23240,
+      "end": 23560,
+      "confidence": 0.9995117,
+      "highlight": true
+    },
+    {
+      "text": "that",
+      "start": 23560,
+      "end": 23920,
+      "confidence": 0.99853516,
+      "highlight": false
+    },
+    {
+      "text": "into",
+      "start": 24400,
+      "end": 24760,
+      "confidence": 0.9995117,
+      "highlight": false
+    },
+    {
+      "text": "different",
+      "start": 24760,
+      "end": 25120,
+      "confidence": 0.9970703,
+      "highlight": false
+    },
+    {
+      "text": "type",
+      "start": 25120,
+      "end": 25600,
+      "confidence": 0.6513672,
+      "highlight": false
+    },
+    {
+      "text": "of",
+      "start": 25600,
+      "end": 25760,
+      "confidence": 0.9321289,
+      "highlight": false
+    },
+    {
+      "text": "smaller",
+      "start": 25760,
+      "end": 26160,
+      "confidence": 0.9987793,
+      "highlight": false
+    },
+    {
+      "text": "problem",
+      "start": 26160,
+      "end": 26440,
+      "confidence": 1.0,
+      "highlight": true
+    },
+    {
+      "text": "and",
+      "start": 26440,
+      "end": 26680,
+      "confidence": 0.9980469,
+      "highlight": false
+    },
+    {
+      "text": "solve",
+      "start": 26680,
+      "end": 26920,
+      "confidence": 0.9836426,
+      "highlight": true
+    },
+    {
+      "text": "it",
+      "start": 26920,
+      "end": 27080,
+      "confidence": 0.97802734,
+      "highlight": false
+    },
+    {
+      "text": "by",
+      "start": 27080,
+      "end": 27280,
+      "confidence": 0.96484375,
+      "highlight": false
+    },
+    {
+      "text": "first",
+      "start": 27280,
+      "end": 27520,
+      "confidence": 0.99902344,
+      "highlight": false
+    },
+    {
+      "text": "principle",
+      "start": 27520,
+      "end": 27960,
+      "confidence": 0.9123535,
+      "highlight": false
+    }
+  ],
+  "duration_ms": 28000
+}

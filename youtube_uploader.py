@@ -119,12 +119,11 @@ For TITLES:
 - Capitalize key words strategically
 
 For DESCRIPTIONS:
-- Start with a strong hook in the first line (this shows in search)
-- Keep total description under 200 words
-- Include relevant keywords naturally
-- Add a call-to-action (like, subscribe, comment)
-- Be conversational and engaging
-- Don't stuff with hashtags (we add those separately)
+- MAXIMUM 10-12 words only - extremely concise
+- Highlight sharp facts, contrarian insights, or growth moments
+- One punchy sentence that captures the core message
+- No fluff, no filler, no call-to-action
+- Be bold and direct
 
 For TAGS:
 - Provide 8-12 relevant tags
@@ -135,7 +134,7 @@ For TAGS:
 Return your response in this exact JSON format:
 {
     "title": "Your Title Here",
-    "description": "Your description here...",
+    "description": "Sharp 10-12 word caption here.",
     "tags": ["tag1", "tag2", "tag3"]
 }"""
 
@@ -154,7 +153,7 @@ Return your response in this exact JSON format:
 Remember:
 - This is a YouTube SHORT (vertical, under 60 seconds)
 - The title should create curiosity and drive clicks
-- The description should be engaging but concise
+- The description MUST be exactly 10-12 words - highlight a sharp fact, contrarian insight, or growth moment
 - Tags should help with discoverability
 
 Return ONLY the JSON object, no other text."""
@@ -185,7 +184,7 @@ Return ONLY the JSON object, no other text."""
             if 'title' not in metadata:
                 metadata['title'] = "Check This Out! 🔥"
             if 'description' not in metadata:
-                metadata['description'] = "Watch till the end! 👀\n\nLike and subscribe for more!"
+                metadata['description'] = "Sharp insights that challenge conventional wisdom and drive growth."
             if 'tags' not in metadata:
                 metadata['tags'] = ["shorts", "viral", "trending"]
             
@@ -203,7 +202,7 @@ Return ONLY the JSON object, no other text."""
             # Return defaults
             return {
                 'title': "You Need To See This! 🔥 #Shorts",
-                'description': "Watch this incredible moment! 👀\n\nDon't forget to like and subscribe for more amazing content!",
+                'description': "Sharp insights that challenge conventional wisdom and drive growth.",
                 'tags': ["shorts", "viral", "trending", "fyp", "mustwatch"]
             }
 
