@@ -422,10 +422,17 @@ class YouTubeUploader:
         if custom_description:
             metadata['description'] = custom_description
         
-        # Always add brand mention to title if configured
-        if self.config.brand_mention and not metadata['title'].startswith(self.config.brand_mention):
-            metadata['title'] = f"{self.config.brand_mention} {metadata['title']}"
-            print(f"[INFO] Added brand mention to title: {metadata['title']}")
+        # Always add brand mention to title and description if configured
+        if self.config.brand_mention:
+            # Add to title if not already present
+            if not metadata['title'].startswith(self.config.brand_mention):
+                metadata['title'] = f"{self.config.brand_mention} {metadata['title']}"
+                print(f"[INFO] Added brand mention to title: {metadata['title']}")
+            
+            # Add to description if not already present
+            if not metadata['description'].startswith(self.config.brand_mention):
+                metadata['description'] = f"{self.config.brand_mention}\n\n{metadata['description']}"
+                print(f"[INFO] Added brand mention to description")
         
         # Upload the video
         result = self.upload_video(

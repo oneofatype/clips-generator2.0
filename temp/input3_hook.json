@@ -1,8 +1,13 @@
 {
-  "hook_text": "Stop thinking. The most successful people are just great copycats.",
+  "hook_text": "The real reason you feel stuck isn't what you think.",
   "prefix": "$8B Fintech CEO: ",
-  "subject_words": "successful people",
-  "object_words": "great copycats",
-  "scores": {},
-  "reasoning": "Highlighting 'successful people' establishes the aspirational authority figure, while 'great copycats' provides a controversial, contradictory label that triggers disbelief and invites debate regarding originality versus imitation."
+  "subject_words": "real reason",
+  "object_words": "feel stuck",
+  "scores": {
+    "emotional_charge": 9,
+    "controversy_potential": 5,
+    "negativity_bias": 8,
+    "defensibility": 9
+  },
+  "reasoning": "This hook achieves the highest score by effectively leveraging the 'Negativity Bias' through the pain point of feeling stuck, combined with a high 'Curiosity Gap' (it's not what you think). It promises a direct revelation to a specific internal problem, making it nearly impossible to scroll past."
 }

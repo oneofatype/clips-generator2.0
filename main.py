@@ -1513,6 +1513,17 @@ class PodcastToShortsPipeline:
                 continue
         
         try:
+            # Get video duration for proper music looping
+            probe_cmd = [ffmpeg_cmd, "-v", "error", "-show_entries", "format=duration", 
+                        "-of", "default=noprint_wrappers=1:nokey=1:noprint_wrappers=1", video_path]
+            result = subprocess.run(probe_cmd, capture_output=True, text=True, check=False)
+            try:
+                video_duration = float(result.stdout.strip())
+                print(f"[MUSIC] Video duration: {video_duration:.2f}s")
+            except:
+                print(f"[MUSIC] Could not determine video duration, using default loop")
+                video_duration = None
+            
             # Calculate where to start the music for peak alignment
             music_seek_time = 0.0  # How many seconds to skip into the music
             music_delay_ms = 0     # How many ms to delay music start (if needed)
@@ -1574,60 +1585,68 @@ class PodcastToShortsPipeline:
                 attack = self.config.ducking_attack_ms / 1000.0
                 release = self.config.ducking_release_ms / 1000.0
                 
+                # Use gentler ducking parameters to avoid artifacts
                 if music_delay_ms > 0:
-                    # With delay
+                    # With delay - proper audio sync
                     filter_complex = (
-                        f"[1:a]adelay={music_delay_ms}|{music_delay_ms},volume={high_vol}[music_delayed];"
-                        f"[music_delayed][0:a]sidechaincompress=threshold=0.02:ratio=8:attack={attack}:release={release}:level_sc=1[ducked];"
-                        f"[0:a][ducked]amix=inputs=2:duration=first:dropout_transition=2[aout]"
+                        f"[1:a]adelay={music_delay_ms}|{music_delay_ms}[music_delayed];"
+                        f"[music_delayed]volume={high_vol}[music_vol];"
+                        f"[music_vol][0:a]sidechaincompress=threshold=0.003:ratio=4:attack={attack}:release={release}:makeup=5[ducked];"
+                        f"[0:a][ducked]amix=inputs=2:duration=first[aout]"
                     )
                 else:
                     # Without delay
                     filter_complex = (
                         f"[1:a]volume={high_vol}[music_vol];"
-                        f"[music_vol][0:a]sidechaincompress=threshold=0.02:ratio=8:attack={attack}:release={release}:level_sc=1[ducked];"
-                        f"[0:a][ducked]amix=inputs=2:duration=first:dropout_transition=2[aout]"
+                        f"[music_vol][0:a]sidechaincompress=threshold=0.003:ratio=4:attack={attack}:release={release}:makeup=5[ducked];"
+                        f"[0:a][ducked]amix=inputs=2:duration=first[aout]"
                     )
                 print(f"[MUSIC] Audio ducking enabled (volume: {high_vol})")
             else:
-                # Simple volume mix without ducking
+                # Simple volume mix without ducking - cleaner audio
                 if music_delay_ms > 0:
                     filter_complex = (
-                        f"[1:a]adelay={music_delay_ms}|{music_delay_ms},volume={bg_volume}[music];"
-                        f"[0:a][music]amix=inputs=2:duration=first:dropout_transition=2[aout]"
+                        f"[1:a]adelay={music_delay_ms}|{music_delay_ms}[music_delayed];"
+                        f"[music_delayed]volume={bg_volume}[music];"
+                        f"[0:a][music]amix=inputs=2:duration=first[aout]"
                     )
                 else:
                     filter_complex = (
                         f"[1:a]volume={bg_volume}[music];"
-                        f"[0:a][music]amix=inputs=2:duration=first:dropout_transition=2[aout]"
+                        f"[0:a][music]amix=inputs=2:duration=first[aout]"
                     )
             
-            # Build FFmpeg command
+            # Build FFmpeg command with better audio quality settings
             cmd = [ffmpeg_cmd, "-y"]
             
             # Input 0: Video with voice
             cmd.extend(["-i", video_path])
             
-            # Input 1: Music (with seek if needed to crop the beginning)
+            # Input 1: Music
             if music_seek_time > 0:
                 cmd.extend(["-ss", f"{music_seek_time:.3f}"])
             
-            cmd.extend(["-stream_loop", "-1"])  # Loop music if shorter than video
+            # Only loop if we have video duration, otherwise don't loop (safer)
+            if video_duration:
+                cmd.extend(["-stream_loop", "1"])  # Loop once, not infinite (safer)
+            
             cmd.extend(["-i", music_path])
             
-            # Apply filter and output
+            # Apply filter and output with high quality audio
             cmd.extend([
                 "-filter_complex", filter_complex,
                 "-map", "0:v",  # Use video from first input
                 "-map", "[aout]",  # Use mixed audio
                 "-c:v", "copy",  # Copy video codec (no re-encoding)
-                "-c:a", "aac",  # Encode audio as AAC
-                "-b:a", "192k",
-                "-shortest",  # End when shortest input ends
+                "-c:a", "libmp3lame",  # Use MP3 for better compatibility and less artifacts
+                "-q:a", "5",  # Variable bitrate quality (5 = ~192kbps)
+                "-ac", "2",  # Ensure stereo
+                "-ar", "48000",  # Standard sample rate
+                "-async", "1",  # Audio sync
                 output_path
             ])
             
-            print(f"[MUSIC] Mixing background music...")
+            print(f"[MUSIC] Mixing background music with high-quality audio...")
             result = subprocess.run(cmd, check=True, capture_output=True)
             
             print(f"[MUSIC] Successfully added background music with smart sync")

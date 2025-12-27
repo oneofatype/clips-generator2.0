@@ -273,7 +273,7 @@ class InstagramUploader:
         tags_str = " ".join(self.config.tags)
         
         if tags_str not in caption:
-            caption = f"{caption}\n\n{tags_str}"
+            caption = f"{tags_str} {caption}\n\n"
         
         return caption
     

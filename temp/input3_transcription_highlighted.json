@@ -97,7 +97,7 @@
       "start": 4120,
       "end": 4400,
       "confidence": 0.9995117,
-      "highlight": false
+      "highlight": true
     },
     {
       "text": "to",
@@ -174,7 +174,7 @@
       "start": 7320,
       "end": 7600,
       "confidence": 0.9938965,
-      "highlight": false
+      "highlight": true
     },
     {
       "text": "is",
@@ -209,7 +209,7 @@
       "start": 9080,
       "end": 9400,
       "confidence": 0.99902344,
-      "highlight": false
+      "highlight": true
     },
     {
       "text": "principle",
@@ -510,7 +510,7 @@
       "start": 25760,
       "end": 26160,
       "confidence": 0.9987793,
-      "highlight": true
+      "highlight": false
     },
     {
       "text": "problem",
@@ -552,7 +552,7 @@
       "start": 27280,
       "end": 27520,
       "confidence": 0.99902344,
-      "highlight": false
+      "highlight": true
     },
     {
       "text": "principle",
