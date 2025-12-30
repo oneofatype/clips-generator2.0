@@ -1,13 +1,8 @@
 {
-  "hook_text": "Does anyone giving advice actually know what they're doing?",
+  "hook_text": "The real reason your great ideas are failing.",
   "prefix": "$8B Fintech CEO: ",
-  "subject_words": "anyone giving advice",
-  "object_words": "actually know what they're doing",
-  "scores": {
-    "emotional_charge": 9,
-    "controversy_potential": 9,
-    "negativity_bias": 8,
-    "defensibility": 9
-  },
-  "reasoning": "This hook scores highest because it attacks a 'sacred cow' (experts/gurus). It triggers 'Imposter Syndrome' anxieties while simultaneously validating the audience's skepticism of online authority. It poses a question rather than a statement, which psychologically compels users to answer in the comments to either defend their expertise or vent their frustrations, maximizing engagement metrics."
+  "subject_words": "great ideas",
+  "object_words": "failing",
+  "scores": {},
+  "reasoning": "\"Great ideas\" represents the viewer's valued asset (the main topic), while \"failing\" highlights the specific negative outcome/action, creating the necessary contrast and tension to drive curiosity."
 }

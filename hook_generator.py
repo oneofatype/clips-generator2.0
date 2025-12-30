@@ -477,17 +477,37 @@ and the winning hook with SUBJECT and OBJECT words identified.""",
 
 class HookRenderer:
     """
-    Renders hook text onto video frames with SUBJECT (yellow) and OBJECT (purple) highlights.
+    Renders hook text onto video frames with SUBJECT and OBJECT highlights.
+    Supports custom color configuration.
     """
     
-    def __init__(self, font_path: str = "BebasNeue-Regular.ttf", font_size: int = 42):
+    def __init__(self, font_path: str = "BebasNeue-Regular.ttf", font_size: int = 42,
+                 use_mono_color: bool = False,
+                 mono_color: tuple = (255, 255, 0),
+                 primary_color: tuple = (255, 255, 0),
+                 secondary_color: tuple = (180, 100, 255)):
+        """
+        Initialize the hook renderer with optional custom colors.
+        
+        Args:
+            font_path: Path to the font file
+            font_size: Font size for rendering
+            use_mono_color: If True, use only mono_color for all highlights
+            mono_color: Single color for all highlights when use_mono_color=True
+            primary_color: Color for SUBJECT words (default: yellow)
+            secondary_color: Color for OBJECT words (default: purple)
+        """
         self.font_path = font_path
         self.font_size = font_size
+        self.use_mono_color = use_mono_color
+        self.mono_color = mono_color
+        self.primary_color = primary_color
+        self.secondary_color = secondary_color
         
         # Colors
         self.default_color = (255, 255, 255)  # White
-        self.subject_color = (255, 255, 0)     # Yellow for SUBJECT
-        self.object_color = (180, 100, 255)    # Purple for OBJECT
+        self.subject_color = self.mono_color if self.use_mono_color else self.primary_color
+        self.object_color = self.mono_color if self.use_mono_color else self.secondary_color
         
         # Import PIL for text rendering
         try:

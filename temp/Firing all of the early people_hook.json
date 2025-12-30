@@ -1,12 +1,8 @@
 {
-  "hook_text": "Why our most qualified employees were the first to go.",
-  "subject_word": "EMPLOYEES",
-  "object_word": "GO",
-  "scores": {
-    "emotional_charge": 9,
-    "controversy_potential": 9,
-    "negativity_bias": 9,
-    "defensibility": 8
-  },
-  "reasoning": "This hook achieves the highest score (35) by maximizing Negativity Bias and Cognitive Dissonance. The concept of firing 'qualified' people (usually a positive trait) creates immediate shock and curiosity. It triggers deep professional insecurity (fear) and invites debate about meritocracy, while remaining defensible as a 'culture fit' narrative."
+  "hook_text": "Hiring for experience is the biggest mistake you can make.",
+  "prefix": "$8B Fintech CEO: ",
+  "subject_words": "Hiring for experience",
+  "object_words": "biggest mistake",
+  "scores": {},
+  "reasoning": "Selecting 'Hiring for experience' as the subject immediately identifies the specific conventional wisdom being challenged. Highlighting 'biggest mistake' as the object creates the necessary negative emotional stakes and contrarian tension to force the click."
 }

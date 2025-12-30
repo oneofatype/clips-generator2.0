@@ -44,7 +44,7 @@ class YouTubeConfig:
     
     # OAuth settings
     client_secret_file: str = "virtualrealm_ytdata_api_client_secret.json"
-    token_file: str = "youtube_token.pickle"
+    token_file: str = None  # Will be auto-generated from client_secret_file
     
     # API settings
     api_service_name: str = "youtube"
@@ -61,6 +61,12 @@ class YouTubeConfig:
     brand_mention: str = "@airwallex"  # Brand mention to add to title
     
     def __post_init__(self):
+        """Auto-generate token file and set default hashtags."""
+        if self.token_file is None:
+            # Convert "path/to/secret.json" -> "path/to/secret_token.pickle"
+            secret_path = Path(self.client_secret_file)
+            self.token_file = str(secret_path.parent / f"{secret_path.stem}_token.pickle")
+
         if self.shorts_hashtags is None:
             self.shorts_hashtags = ["#Shorts", "#YouTubeShorts", "#Viral"]
 
@@ -556,7 +562,7 @@ def main():
     parser.add_argument(
         "--client-secret",
         type=str,
-        default="virtualrealm_ytdata_api_client_secret.json",
+        default="secrets/virtualrealm_ytdata_api_client_secret.json",
         help="Path to OAuth client secret file"
     )
     

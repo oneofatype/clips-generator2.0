@@ -1,0 +1,8 @@
+{
+  "hook_text": "This skill is more valuable than any college degree.",
+  "prefix": "$8B Fintech CEO: ",
+  "subject_words": "This skill",
+  "object_words": "any college degree",
+  "scores": {},
+  "reasoning": "Highlighting 'This skill' immediately establishes the mystery topic (Subject), while 'any college degree' sets a high-stakes, concrete benchmark (Object) for the comparison. This creates a visual conflict that challenges societal norms, maximizing curiosity."
+}

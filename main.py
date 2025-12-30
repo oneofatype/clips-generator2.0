@@ -52,6 +52,42 @@ from hook_discord_selector import run_music_selector_bot, MusicSelectionResult
 
 
 # =============================================================================
+# UTILITY FUNCTIONS
+# =============================================================================
+
+def hex_to_rgb(hex_color: str) -> tuple:
+    """
+    Convert hex color string to RGB tuple.
+    
+    Args:
+        hex_color: Color in hex format (e.g., "FFFF00" or "#FFFF00" or "0xFFFF00")
+        
+    Returns:
+        RGB tuple (R, G, B) with values 0-255
+    """
+    # Remove common prefixes
+    hex_color = hex_color.strip()
+    if hex_color.startswith('#'):
+        hex_color = hex_color[1:]
+    elif hex_color.startswith('0x') or hex_color.startswith('0X'):
+        hex_color = hex_color[2:]
+    
+    # Ensure it's 6 characters
+    if len(hex_color) != 6:
+        print(f"[WARNING] Invalid hex color '{hex_color}', using default yellow")
+        return (255, 255, 0)
+    
+    try:
+        r = int(hex_color[0:2], 16)
+        g = int(hex_color[2:4], 16)
+        b = int(hex_color[4:6], 16)
+        return (r, g, b)
+    except ValueError:
+        print(f"[WARNING] Could not parse hex color '{hex_color}', using default yellow")
+        return (255, 255, 0)
+
+
+# =============================================================================
 # CONFIGURATION
 # =============================================================================
 
@@ -116,7 +152,8 @@ class PipelineConfig:
     
     # YouTube upload settings
     enable_youtube_upload: bool = False  # Enable/disable YouTube upload
-    youtube_client_secret: str = "virtualrealm_ytdata_api_client_secret.json"
+    youtube_client_secret: str = "virtualrealm_ytdata_api_client_secret.json"  # Fallback for single channel
+    youtube_secrets_folder: str = "secrets"  # Folder containing multiple YouTube secret JSON files
     youtube_privacy: str = "public"  # public, private, or unlisted
     youtube_mention: str = "@airwallex"  # Mention to add to YouTube title
     
@@ -141,6 +178,12 @@ class PipelineConfig:
     ducking_high_volume: float = 0.6  # Music volume at climax/drops
     ducking_attack_ms: int = 50  # How fast to duck (ms)
     ducking_release_ms: int = 300  # How fast to unduck (ms)
+    
+    # Color customization
+    use_mono_color: bool = False  # Use single color for all highlights
+    mono_color: tuple = (255, 255, 0)  # Hex color converted to RGB tuple for mono mode (default: yellow)
+    primary_color: tuple = (255, 255, 0)  # Primary color for subtitles and hook (default: yellow)
+    secondary_color: tuple = (180, 100, 255)  # Secondary color for hook object (default: purple)
     
     def __post_init__(self):
         if self.instagram_tags is None:
@@ -452,8 +495,13 @@ class WordImageGenerator:
             # Choose font and color based on highlight status
             if is_highlighted:
                 font_path = self._get_random_highlight_font()
-                text_color = self.config.highlight_color
-                glow_color = self.config.highlight_color
+                # Use mono color if set, otherwise use primary color
+                if self.config.use_mono_color:
+                    text_color = self.config.mono_color
+                    glow_color = self.config.mono_color
+                else:
+                    text_color = self.config.primary_color
+                    glow_color = self.config.primary_color
             else:
                 font_path = self.config.font_path
                 text_color = self.config.text_color
@@ -851,26 +899,49 @@ class PodcastToShortsPipeline:
         print(f"[INFO] Selected video: {selected}")
         return selected
     
-    def process(self, input_video: Optional[str] = None, debug: bool = False):
+    def process(self, input_video: Optional[str] = None, debug: bool = False, skip_face_tracking: bool = False):
         """
         Run the full pipeline.
         
         Args:
-            input_video: Optional specific video path. If None, picks random from input folder
+            input_video: Optional specific video path. If None, picks random from input folder.
+                         This is ignored if skip_face_tracking is True.
             debug: Show debug overlays during face tracking
+            skip_face_tracking: Skip face tracking and use a random cached vertical video
         """
-        # Step 1: Get input video
-        if input_video is None:
-            input_video = self.get_random_video()
-            self._last_random_video = input_video  # Track for deletion
+        vertical_video_path = None
+        
+        # --- Mode 1: Skip face tracking and use any cached vertical video ---
+        if skip_face_tracking:
+            print("[INFO] --skip-face-tracking enabled. Searching for a cached vertical video...")
+            cached_videos = [
+                os.path.join(self.config.temp_folder, f)
+                for f in os.listdir(self.config.temp_folder)
+                if f.lower().endswith("_vertical.mp4")
+            ]
+            
+            if not cached_videos:
+                print(f"[ERROR] No cached '*_vertical.mp4' videos found in '{self.config.temp_folder}'")
+                print("[ERROR] Please run the pipeline without --skip-face-tracking first.")
+                return
+            
+            vertical_video_path = random.choice(cached_videos)
+            input_video = vertical_video_path  # Use this as the source for audio etc.
+            print(f"[INFO] Using random cached video: {vertical_video_path}")
+
+        # --- Mode 2: Process a new video from the input folder ---
         else:
-            self._last_random_video = None
+            if input_video is None:
+                input_video = self.get_random_video()
+                self._last_random_video = input_video  # Track for deletion
+            else:
+                self._last_random_video = None
+            
+            if input_video is None or not os.path.exists(input_video):
+                print("[ERROR] No valid input video")
+                return
         
-        if input_video is None or not os.path.exists(input_video):
-            print("[ERROR] No valid input video")
-            return
-        
-        video_name = Path(input_video).stem
+        video_name = Path(input_video).stem.replace('_vertical', '')
         
         # =============================================================================
         # TESTING MODE: Load from previously stored files instead of making API calls
@@ -944,7 +1015,11 @@ class PodcastToShortsPipeline:
                 # Create hook image - width will be set dynamically based on video width
                 hook_renderer = HookRenderer(
                     font_path=self.config.font_path,
-                    font_size=self.config.hook_font_size
+                    font_size=self.config.hook_font_size,
+                    use_mono_color=self.config.use_mono_color,
+                    mono_color=self.config.mono_color,
+                    primary_color=self.config.primary_color,
+                    secondary_color=self.config.secondary_color
                 )
                 # Placeholder max_width - will be recalculated when we know video dimensions
                 hook_image = hook_renderer.create_hook_image(
@@ -967,27 +1042,28 @@ class PodcastToShortsPipeline:
         
         else:
             # =============================================================================
-            # PRODUCTION MODE: Real API calls (commented out for testing)
+            # PRODUCTION MODE: Real API calls
             # =============================================================================
             
-            # Step 2: Convert to vertical format using face tracker
-            print("\n" + "="*60)
-            print("STEP 1: Converting to vertical format (face tracking)")
-            print("="*60)
-            
-            vertical_video_path = os.path.join(
-                self.config.temp_folder, 
-                f"{video_name}_vertical.mp4"
-            )
-            
-            face_config = Config()
-            face_config.ema_alpha = 0.1
-            face_config.speaker_switch_delay_frames = 20
-            
-            processor = VideoProcessor(face_config)
-            processor.process(input_video, vertical_video_path, debug=debug)
-            
-            print(f"[INFO] Vertical video saved to: {vertical_video_path}")
+            # Step 2: Convert to vertical format using face tracker (if not skipped)
+            if not skip_face_tracking:
+                print("\n" + "="*60)
+                print("STEP 1: Converting to vertical format (face tracking)")
+                print("="*60)
+                
+                vertical_video_path = os.path.join(
+                    self.config.temp_folder, 
+                    f"{video_name}_vertical.mp4"
+                )
+
+                face_config = Config()
+                face_config.ema_alpha = 0.1
+                face_config.speaker_switch_delay_frames = 20
+                
+                processor = VideoProcessor(face_config)
+                processor.process(input_video, vertical_video_path, debug=debug)
+                
+                print(f"[INFO] Vertical video ready: {vertical_video_path}")
             
             # Step 3: Transcribe with AssemblyAI
             print("\n" + "="*60)
@@ -1097,7 +1173,11 @@ class PodcastToShortsPipeline:
                     # Create hook image - width will be set dynamically based on video width
                     hook_renderer = HookRenderer(
                         font_path=self.config.font_path,
-                        font_size=self.config.hook_font_size
+                        font_size=self.config.hook_font_size,
+                        use_mono_color=self.config.use_mono_color,
+                        mono_color=self.config.mono_color,
+                        primary_color=self.config.primary_color,
+                        secondary_color=self.config.secondary_color
                     )
                     # Placeholder max_width - will be adjusted later based on video width
                     hook_image = hook_renderer.create_hook_image(
@@ -1241,8 +1321,16 @@ class PodcastToShortsPipeline:
         print("="*60)
         print(f"[SUCCESS] Final video saved to: {output_video_path}")
 
-        if youtube_result and youtube_result.get('success'):
-            print(f"[SUCCESS] YouTube URL: {youtube_result.get('url')}")
+        if youtube_result:
+            # Handle both single and multiple channel results
+            if youtube_result.get('channels'):
+                # Multiple channels
+                for channel_result in youtube_result['channels']:
+                    if channel_result.get('success'):
+                        print(f"[SUCCESS] {channel_result.get('channel_name')}: {channel_result.get('url')}")
+            elif youtube_result.get('success'):
+                # Single channel (fallback)
+                print(f"[SUCCESS] YouTube URL: {youtube_result.get('url')}")
 
         if instagram_result and instagram_result.get('permalink'):
             print(f"[SUCCESS] Instagram URL: {instagram_result.get('permalink')}")
@@ -1257,10 +1345,42 @@ class PodcastToShortsPipeline:
 
         return output_video_path
     
+    def _get_youtube_secret_files(self) -> List[str]:
+        """
+        Get all YouTube secret JSON files from the secrets folder.
+        
+        Returns:
+            List of absolute paths to secret JSON files
+        """
+        secrets_folder = self.config.youtube_secrets_folder
+        secret_files = []
+        
+        if not os.path.exists(secrets_folder):
+            print(f"[INFO] Secrets folder not found: {secrets_folder}")
+            return []
+        
+        # Find all JSON files in secrets folder
+        try:
+            for file in os.listdir(secrets_folder):
+                if file.lower().endswith('.json'):
+                    file_path = os.path.join(secrets_folder, file)
+                    if os.path.isfile(file_path):
+                        secret_files.append(file_path)
+        except Exception as e:
+            print(f"[WARNING] Error reading secrets folder: {e}")
+        
+        if secret_files:
+            print(f"[INFO] Found {len(secret_files)} YouTube channel(s) in {secrets_folder}")
+            for secret_file in secret_files:
+                print(f"       - {os.path.basename(secret_file)}")
+        
+        return secret_files
+    
     def _upload_to_youtube(self, video_path: str, transcription_data: Optional[Dict],
                             hook_result: Optional['HookResult']) -> Optional[Dict]:
         """
         Upload the final video to YouTube with AI-generated metadata.
+        Supports uploading to multiple YouTube channels from secrets folder.
         
         Args:
             video_path: Path to the final video
@@ -1268,7 +1388,7 @@ class PodcastToShortsPipeline:
             hook_result: Hook generation result
             
         Returns:
-            YouTube upload result dictionary
+            Dictionary with upload results for all channels
         """
         try:
             # Get transcript text
@@ -1281,15 +1401,7 @@ class PodcastToShortsPipeline:
             if hook_result:
                 hook_text = hook_result.hook_text
             
-            # Configure YouTube uploader
-            yt_config = YouTubeConfig(
-                client_secret_file=self.config.youtube_client_secret,
-                privacy_status=self.config.youtube_privacy
-            )
-            
-            uploader = YouTubeUploader(yt_config)
-            
-            # Generate metadata first using Gemini
+            # Generate metadata first using Gemini (same for all channels)
             api_key = self.gemini_key or os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
             
             if api_key:
@@ -1309,25 +1421,91 @@ class PodcastToShortsPipeline:
                 metadata['title'] = f"{self.config.youtube_mention} {original_title}"
                 print(f"[INFO] Added mention to title: {metadata['title']}")
             
-            # Upload with custom metadata (bypassing upload_short's metadata generation)
-            result = uploader.upload_video(
-                video_path=video_path,
-                title=metadata['title'],
-                description=metadata['description'],
-                tags=metadata['tags'],
-                privacy_status=self.config.youtube_privacy
-            )
+            # Get list of secret files (multiple channels)
+            secret_files = self._get_youtube_secret_files()
             
-            # Add metadata to result
-            result['metadata'] = metadata
+            # If no secrets in folder, use fallback single secret file
+            if not secret_files:
+                secret_files = [self.config.youtube_client_secret]
+                print(f"[INFO] Using fallback secret file: {self.config.youtube_client_secret}")
             
-            # Save upload record
-            uploader._save_upload_record(video_path, result)
+            # Upload to all channels
+            all_results = {
+                'all_success': True,
+                'channels': [],
+                'total_uploaded': 0,
+                'total_failed': 0
+            }
             
-            return result
+            for secret_file in secret_files:
+                if not os.path.exists(secret_file):
+                    print(f"[WARNING] Secret file not found: {secret_file}")
+                    continue
+                
+                channel_name = os.path.basename(secret_file).replace('.json', '')
+                print(f"\n[INFO] Uploading to channel: {channel_name}")
+                print(f"[INFO] Using secret: {secret_file}")
+                
+                try:
+                    # Configure YouTube uploader for this channel
+                    yt_config = YouTubeConfig(
+                        client_secret_file=secret_file,
+                        privacy_status=self.config.youtube_privacy
+                    )
+                    
+                    uploader = YouTubeUploader(yt_config)
+                    
+                    # Upload with custom metadata
+                    result = uploader.upload_video(
+                        video_path=video_path,
+                        title=metadata['title'],
+                        description=metadata['description'],
+                        tags=metadata['tags'],
+                        privacy_status=self.config.youtube_privacy
+                    )
+                    
+                    # Add metadata to result
+                    result['metadata'] = metadata
+                    result['channel_name'] = channel_name
+                    result['secret_file'] = secret_file
+                    
+                    # Save upload record
+                    uploader._save_upload_record(video_path, result)
+                    
+                    # Track results
+                    all_results['channels'].append(result)
+                    if result.get('success'):
+                        all_results['total_uploaded'] += 1
+                        print(f"[SUCCESS] Uploaded to {channel_name}")
+                        print(f"[INFO] URL: {result.get('url')}")
+                    else:
+                        all_results['all_success'] = False
+                        all_results['total_failed'] += 1
+                        print(f"[ERROR] Upload to {channel_name} failed: {result.get('error')}")
+                    
+                except Exception as e:
+                    print(f"[ERROR] Upload to {channel_name} failed: {e}")
+                    all_results['all_success'] = False
+                    all_results['total_failed'] += 1
+                    all_results['channels'].append({
+                        'success': False,
+                        'channel_name': channel_name,
+                        'error': str(e),
+                        'metadata': metadata
+                    })
+            
+            # Print summary
+            print(f"\n{'='*60}")
+            print(f"YouTube Upload Summary")
+            print(f"{'='*60}")
+            print(f"Total Channels: {len(secret_files)}")
+            print(f"Successful: {all_results['total_uploaded']}")
+            print(f"Failed: {all_results['total_failed']}")
+            
+            return all_results if all_results['channels'] else {'success': False, 'error': 'No channels available'}
             
         except Exception as e:
-            print(f"[ERROR] YouTube upload failed: {e}")
+            print(f"[ERROR] YouTube upload process failed: {e}")
             import traceback
             traceback.print_exc()
             return {'success': False, 'error': str(e)}
@@ -1420,11 +1598,32 @@ class PodcastToShortsPipeline:
         try:
             import librosa
             import numpy as np
+            import warnings
+            
+            # Suppress librosa warnings
+            warnings.filterwarnings('ignore')
             
             print("[SYNC] Analyzing music for the 'drop'...")
             
-            # Load music audio
-            y_music, sr_music = librosa.load(music_path)
+            # Load music audio with librosa (handles various formats)
+            # Use sr=None to preserve original sample rate, mono=False to preserve stereo
+            try:
+                y_music, sr_music = librosa.load(music_path, sr=22050, mono=True)
+            except Exception as e:
+                print(f"[SYNC] Warning: librosa load had issues: {e}")
+                print("[SYNC] Using fallback - assuming drop at 1/3 of duration")
+                # Fallback: estimate drop at 1/3 through the file
+                import subprocess
+                try:
+                    result = subprocess.run(
+                        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                         "-of", "default=noprint_wrappers=1:nokey=1", music_path],
+                        capture_output=True, text=True, timeout=10
+                    )
+                    duration = float(result.stdout.strip())
+                    return duration / 3.0
+                except:
+                    return 5.0  # Default 5 seconds
             
             # Calculate 'onset strength' (sudden changes in audio)
             # This finds the "hit" of the beat better than just volume
@@ -1457,11 +1656,47 @@ class PodcastToShortsPipeline:
         try:
             import librosa
             import numpy as np
+            import subprocess
+            import warnings
+            
+            # Suppress librosa warnings
+            warnings.filterwarnings('ignore')
             
             print("[SYNC] Analyzing voice for the 'climax'...")
             
-            # Load audio from video
-            y_voice, sr_voice = librosa.load(video_path)
+            # Extract audio from video to temporary file using FFmpeg
+            # This ensures clean audio extraction without librosa format issues
+            temp_audio = os.path.join(self.config.temp_folder, f"_voice_analysis_{os.getpid()}.wav")
+            
+            try:
+                # Use FFmpeg to extract audio cleanly
+                extract_cmd = [
+                    "ffmpeg", "-y", "-i", video_path,
+                    "-q:a", "9",  # Good quality
+                    "-ac", "1",   # Mono
+                    "-ar", "22050",  # 22050 Hz sample rate
+                    temp_audio
+                ]
+                
+                result = subprocess.run(extract_cmd, capture_output=True, timeout=30)
+                
+                if not os.path.exists(temp_audio):
+                    print("[SYNC] FFmpeg extraction failed, using fallback")
+                    return 0.0
+                
+                # Now load the extracted audio with librosa
+                y_voice, sr_voice = librosa.load(temp_audio, sr=22050, mono=True)
+                
+            except Exception as e:
+                print(f"[SYNC] Audio extraction failed: {e}, using fallback")
+                return 0.0
+            finally:
+                # Clean up temp audio file
+                if os.path.exists(temp_audio):
+                    try:
+                        os.remove(temp_audio)
+                    except:
+                        pass
             
             # Calculate RMS energy (loudness over time)
             rms = librosa.feature.rms(y=y_voice)[0]
@@ -1480,17 +1715,166 @@ class PodcastToShortsPipeline:
             print(f"[SYNC] Error analyzing voice: {e}")
             return 0.0
     
+    # def _add_background_music(self, video_path: str, music_path: str, output_path: str) -> bool:
+    #     """
+    #     Add background music to video with smart sync and optional ducking.
+    #     """
+    #     import subprocess
+    
+    #     # Find FFmpeg
+    #     ffmpeg_cmd = "ffmpeg"
+    #     for path in ["ffmpeg", "ffmpeg.exe", r"C:\ffmpeg\bin\ffmpeg.exe"]:
+    #         try:
+    #             subprocess.run([path, "-version"], capture_output=True, check=True)
+    #             ffmpeg_cmd = path
+    #             break
+    #         except:
+    #             continue
+    
+    #     try:
+    #         # Get video duration
+    #         probe_cmd = [ffmpeg_cmd, "-v", "error", "-show_entries", "format=duration", 
+    #                     "-of", "default=noprint_wrappers=1:nokey=1", video_path]
+    #         result = subprocess.run(probe_cmd, capture_output=True, text=True, check=False)
+    #         try:
+    #             video_duration = float(result.stdout.strip())
+    #             print(f"[MUSIC] Video duration: {video_duration:.2f}s")
+    #         except:
+    #             print(f"[MUSIC] Could not determine video duration")
+    #             video_duration = 60.0  # Default fallback
+        
+    #         # Calculate music timing
+    #         music_seek_time = 0.0
+    #         music_delay_ms = 0
+        
+    #         if self.config.enable_smart_sync:
+    #             print("\n[SYNC] ═══════════════════════════════════════════")
+    #             print("[SYNC] SMART AUDIO SYNC - Aligning music drop with voice peak")
+    #             print("[SYNC] ═══════════════════════════════════════════")
+            
+    #             music_drop_time = self._analyze_music_drop(music_path)
+            
+    #             if self.config.smart_sync_voice_peak_time is not None:
+    #                 voice_peak_time = self.config.smart_sync_voice_peak_time
+    #                 print(f"[SYNC] Voice peak (manual): {voice_peak_time:.2f}s")
+    #             else:
+    #                 voice_peak_time = self._analyze_voice_peak(video_path)
+            
+    #             offset = music_drop_time - voice_peak_time
+            
+    #             print(f"\n[SYNC] Calculation:")
+    #             print(f"[SYNC]   Voice peak at: {voice_peak_time:.2f}s (in video)")
+    #             print(f"[SYNC]   Music drop at: {music_drop_time:.2f}s (in music file)")
+    #             print(f"[SYNC]   Offset needed: {offset:.2f}s")
+            
+    #             if offset >= 0:
+    #                 music_seek_time = offset
+    #                 print(f"\n[SYNC] → Cropping first {music_seek_time:.2f}s of music")
+    #             else:
+    #                 music_delay_ms = int(abs(offset) * 1000)
+    #                 print(f"\n[SYNC] → Delaying music start by {abs(offset):.2f}s")
+            
+    #             print("[SYNC] ═══════════════════════════════════════════\n")
+        
+    #         # Build filter based on settings
+    #         bg_volume = self.config.bg_music_volume
+        
+    #         if self.config.enable_audio_ducking:
+    #             # FIXED: More reasonable ducking parameters
+    #             high_vol = self.config.ducking_high_volume
+    #             attack = self.config.ducking_attack_ms / 1000.0
+    #             release = self.config.ducking_release_ms / 1000.0
+            
+    #             # Better ducking parameters to avoid artifacts
+    #             threshold = "0.02"  # Changed from 0.003 (less sensitive)
+    #             ratio = "3"         # Changed from 4 (gentler compression)
+    #             makeup = "2"        # Changed from 5 (less boost)
+            
+    #             if music_delay_ms > 0:
+    #                 filter_complex = (
+    #                     f"[1:a]atrim=0:{video_duration},asetpts=PTS-STARTPTS[music_trim];"
+    #                     f"[music_trim]adelay={music_delay_ms}|{music_delay_ms}[music_delayed];"
+    #                     f"[music_delayed]volume={high_vol}[music_vol];"
+    #                     f"[music_vol][0:a]sidechaincompress=threshold={threshold}:ratio={ratio}:"
+    #                     f"attack={attack}:release={release}:makeup={makeup}:detection=rms[ducked];"
+    #                     f"[0:a][ducked]amix=inputs=2:duration=first:dropout_transition=2[aout]"
+    #                 )
+    #             else:
+    #                 filter_complex = (
+    #                     f"[1:a]atrim=0:{video_duration},asetpts=PTS-STARTPTS[music_trim];"
+    #                     f"[music_trim]volume={high_vol}[music_vol];"
+    #                     f"[music_vol][0:a]sidechaincompress=threshold={threshold}:ratio={ratio}:"
+    #                     f"attack={attack}:release={release}:makeup={makeup}:detection=rms[ducked];"
+    #                     f"[0:a][ducked]amix=inputs=2:duration=first:dropout_transition=2[aout]"
+    #                 )
+    #             print(f"[MUSIC] Audio ducking enabled (volume: {high_vol})")
+    #         else:
+    #             # FIXED: Simpler mixing without ducking
+    #             if music_delay_ms > 0:
+    #                 filter_complex = (
+    #                     f"[1:a]atrim=0:{video_duration},asetpts=PTS-STARTPTS[music_trim];"
+    #                     f"[music_trim]adelay={music_delay_ms}|{music_delay_ms}[music_delayed];"
+    #                     f"[music_delayed]volume={bg_volume}[music];"
+    #                     f"[0:a][music]amix=inputs=2:duration=first:dropout_transition=2:weights=1 {bg_volume}[aout]"
+    #                 )
+    #             else:
+    #                 filter_complex = (
+    #                     f"[1:a]atrim=0:{video_duration},asetpts=PTS-STARTPTS[music_trim];"
+    #                     f"[music_trim]volume={bg_volume}[music];"
+    #                     f"[0:a][music]amix=inputs=2:duration=first:dropout_transition=2:weights=1 {bg_volume}[aout]"
+    #                 )
+        
+    #         # FIXED: Build FFmpeg command correctly
+    #         cmd = [ffmpeg_cmd, "-y"]
+        
+    #         # Input 0: Video with voice
+    #         cmd.extend(["-i", video_path])
+        
+    #         # Input 1: Music - FIXED: Apply seeking and looping correctly
+    #         if music_seek_time > 0:
+    #             cmd.extend(["-ss", f"{music_seek_time:.3f}"])
+        
+    #         # FIXED: Use aloop in filter instead of stream_loop
+    #         cmd.extend(["-stream_loop", "-1", "-i", music_path])  # Infinite loop
+        
+    #         # Apply filter with improved audio settings
+    #         cmd.extend([
+    #             "-filter_complex", filter_complex,
+    #             "-map", "0:v",
+    #             "-map", "[aout]",
+    #             "-c:v", "copy",
+    #             "-c:a", "aac",      # Changed to AAC (better quality, fewer artifacts)
+    #             "-b:a", "192k",     # Fixed bitrate instead of variable
+    #             "-ac", "2",
+    #             "-ar", "48000",
+    #             "-shortest",        # CRITICAL: Stop when video ends
+    #             output_path
+    #         ])
+        
+    #         print(f"[MUSIC] Mixing background music...")
+    #         print(f"[MUSIC] Command: {' '.join(cmd)}")  # Debug output
+        
+    #         result = subprocess.run(cmd, capture_output=True, text=True)
+        
+    #         if result.returncode != 0:
+    #             print(f"[MUSIC] FFmpeg stderr: {result.stderr}")
+    #             return False
+        
+    #         print(f"[MUSIC] Successfully added background music with smart sync")
+    #         return True
+        
+    #     except subprocess.CalledProcessError as e:
+    #         print(f"[MUSIC] FFmpeg error: {e.stderr.decode() if e.stderr else str(e)}")
+    #         return False
+    #     except Exception as e:
+    #         print(f"[MUSIC] Error adding background music: {e}")
+    #         import traceback
+    #         traceback.print_exc()
+    #         return False
+
     def _add_background_music(self, video_path: str, music_path: str, output_path: str) -> bool:
         """
-        Add background music to video with smart sync and optional ducking.
-        
-        Smart Sync Logic:
-        - Find the 'drop' in the music (highest energy spike)
-        - Find the 'peak' in the voice (loudest moment)
-        - Crop/offset the music so these two moments align perfectly
-        
-        Example: If voice peak is at 5s and music drop is at 30s,
-        we skip the first 25s of music so the drop happens at 5s.
+        Add background music to video starting from the beginning.
         
         Args:
             video_path: Path to the input video
@@ -1513,153 +1897,227 @@ class PodcastToShortsPipeline:
                 continue
         
         try:
-            # Get video duration for proper music looping
+            import tempfile
+            import time
+            
+            # Get video duration
             probe_cmd = [ffmpeg_cmd, "-v", "error", "-show_entries", "format=duration", 
-                        "-of", "default=noprint_wrappers=1:nokey=1:noprint_wrappers=1", video_path]
+                        "-of", "default=noprint_wrappers=1:nokey=1", video_path]
             result = subprocess.run(probe_cmd, capture_output=True, text=True, check=False)
             try:
                 video_duration = float(result.stdout.strip())
                 print(f"[MUSIC] Video duration: {video_duration:.2f}s")
             except:
-                print(f"[MUSIC] Could not determine video duration, using default loop")
-                video_duration = None
+                print(f"[MUSIC] Could not determine video duration, using fallback")
+                video_duration = 60.0
             
-            # Calculate where to start the music for peak alignment
-            music_seek_time = 0.0  # How many seconds to skip into the music
-            music_delay_ms = 0     # How many ms to delay music start (if needed)
-            
-            if self.config.enable_smart_sync:
-                print("\n[SYNC] ═══════════════════════════════════════════")
-                print("[SYNC] SMART AUDIO SYNC - Aligning music drop with voice peak")
-                print("[SYNC] ═══════════════════════════════════════════")
+            # Use temporary directory for intermediate files
+            with tempfile.TemporaryDirectory() as tmpdir:
+                # Step 1: Extract ONLY the audio track from the original video
+                original_audio = os.path.join(tmpdir, "original_audio.wav")
+                print(f"[MUSIC] Extracting original audio from video...")
                 
-                # Step 1: Find the music drop (highest energy spike)
-                music_drop_time = self._analyze_music_drop(music_path)
+                extract_cmd = [
+                    ffmpeg_cmd, "-y", "-i", video_path,
+                    "-vn",  # No video
+                    "-acodec", "pcm_s16le",  # High quality WAV
+                    "-ar", "44100",  # 44.1 kHz
+                    "-ac", "2",  # Stereo
+                    original_audio
+                ]
                 
-                # Step 2: Find the voice peak (loudest/most intense moment)
-                if self.config.smart_sync_voice_peak_time is not None:
-                    voice_peak_time = self.config.smart_sync_voice_peak_time
-                    print(f"[SYNC] Voice peak (manual): {voice_peak_time:.2f}s")
-                else:
-                    voice_peak_time = self._analyze_voice_peak(video_path)
+                result = subprocess.run(extract_cmd, capture_output=True, text=True)
+                if result.returncode != 0 or not os.path.exists(original_audio):
+                    print(f"[MUSIC] WARNING: Could not extract audio")
+                    print(f"[MUSIC] Using video without background music")
+                    shutil.copy(video_path, output_path)
+                    return True
                 
-                # Step 3: Calculate how to align them
-                # We want: when video reaches voice_peak_time, music should be at music_drop_time
-                # 
-                # If voice peak is at 5s and music drop is at 30s:
-                #   - We need to skip 25s of music (start music from 25s mark)
-                #   - So at video time 5s, we're at music time 30s (the drop!)
-                #
-                # If voice peak is at 20s and music drop is at 10s:
-                #   - We can't skip negative time, so we delay music start by 10s
-                #   - Music starts at video time 10s, drop happens at video time 20s
+                # Step 2: Convert background music to WAV format (looping will be done in Python)
+                music_wav = os.path.join(tmpdir, "music_audio.wav")
+                print(f"[MUSIC] Converting background music to WAV...")
                 
-                offset = music_drop_time - voice_peak_time
+                # Simple extraction without looping (we'll handle looping in Python with NumPy/pydub)
+                convert_cmd = [
+                    ffmpeg_cmd, "-y", "-i", music_path,
+                    "-acodec", "pcm_s16le",  # Same format as voice
+                    "-ar", "44100",
+                    "-ac", "2",
+                    music_wav
+                ]
                 
-                print(f"\n[SYNC] Calculation:")
-                print(f"[SYNC]   Voice peak at: {voice_peak_time:.2f}s (in video)")
-                print(f"[SYNC]   Music drop at: {music_drop_time:.2f}s (in music file)")
-                print(f"[SYNC]   Offset needed: {offset:.2f}s")
+                result = subprocess.run(convert_cmd, capture_output=True, text=True)
+                if result.returncode != 0 or not os.path.exists(music_wav):
+                    print(f"[MUSIC] WARNING: Could not convert music")
+                    print(f"[MUSIC] FFmpeg error: {result.stderr}")
+                    print(f"[MUSIC] Using video without background music")
+                    shutil.copy(video_path, output_path)
+                    return True
                 
-                if offset >= 0:
-                    # Music drop is later than voice peak
-                    # Solution: Skip into the music file
-                    music_seek_time = offset
-                    print(f"\n[SYNC] → Cropping first {music_seek_time:.2f}s of music")
-                    print(f"[SYNC] → Music drop will now align with voice peak at {voice_peak_time:.2f}s")
-                else:
-                    # Music drop is earlier than voice peak
-                    # Solution: Delay the music start
-                    music_delay_ms = int(abs(offset) * 1000)
-                    print(f"\n[SYNC] → Delaying music start by {abs(offset):.2f}s")
-                    print(f"[SYNC] → Music drop will align with voice peak at {voice_peak_time:.2f}s")
+                # Step 3: Mix audio using Python (no FFmpeg filters)
+                print(f"[MUSIC] Mixing audio tracks in Python...")
+                mixed_audio = os.path.join(tmpdir, "mixed_audio.wav")
                 
-                print("[SYNC] ═══════════════════════════════════════════\n")
-            
-            # Build FFmpeg filter based on settings
-            bg_volume = self.config.bg_music_volume
-            
-            if self.config.enable_audio_ducking:
-                # Audio ducking: Lower music during speech, boost during silence/climax
-                high_vol = self.config.ducking_high_volume
-                attack = self.config.ducking_attack_ms / 1000.0
-                release = self.config.ducking_release_ms / 1000.0
+                try:
+                    import soundfile as sf
+                    import numpy as np
+                    
+                    # Read both audio files
+                    voice, sr_voice = sf.read(original_audio, dtype='float32')
+                    music, sr_music = sf.read(music_wav, dtype='float32')
+                    
+                    # Ensure both are stereo
+                    if len(voice.shape) == 1:
+                        voice = np.column_stack([voice, voice])
+                    if len(music.shape) == 1:
+                        music = np.column_stack([music, music])
+                    
+                    # Handle music looping if music is shorter than voice
+                    if len(music) < len(voice):
+                        print(f"[MUSIC] Music ({len(music)} samples) is shorter than voice ({len(voice)} samples)")
+                        print(f"[MUSIC] Looping music to fill video duration...")
+                        # Loop music to fill voice duration
+                        loops_needed = (len(voice) // len(music)) + 1
+                        music_looped = np.vstack([music] * loops_needed)
+                        music = music_looped[:len(voice)]  # Trim to exact length
+                        print(f"[MUSIC] Music looped and trimmed to {len(music)} samples")
+                    elif len(music) > len(voice):
+                        # Trim music to match voice
+                        music = music[:len(voice)]
+
+                    # --- DYNAMIC VOLUME CALCULATION ---
+                    print("[MUSIC] Analyzing audio levels for dynamic volume adjustment...")
+                    # Calculate RMS of mono voice signal
+                    voice_mono = np.mean(voice, axis=1)
+                    rms_voice = np.sqrt(np.mean(np.square(voice_mono)))
+
+                    # Calculate RMS of mono music signal (using the looped/trimmed version)
+                    music_mono = np.mean(music, axis=1)
+                    rms_music = np.sqrt(np.mean(np.square(music_mono)))
+
+                    # Calculate dynamic volume
+                    final_volume = 0.0
+                    if rms_music > 1e-9: # Epsilon for silence
+                        # Target RMS for music is 50% of voice RMS
+                        target_rms_music = rms_voice * 0.50
+                        dynamic_volume = target_rms_music / rms_music
+                        
+                        # Use the config volume as a ceiling
+                        max_volume = self.config.bg_music_volume
+                        final_volume = min(dynamic_volume, max_volume)
+
+                    print(f"[MUSIC] Voice RMS: {rms_voice:.4f}, Music RMS: {rms_music:.4f}")
+                    print(f"[MUSIC] Using dynamic volume: {final_volume:.4f} (capped at {self.config.bg_music_volume})")
+                    # --- END DYNAMIC VOLUME ---
+                    
+                    # Simple linear mix: voice + (music * volume)
+                    mixed = voice + (music * final_volume)
+                    
+                    # Normalize to prevent clipping (very important!)
+                    max_val = np.max(np.abs(mixed))
+                    if max_val > 1.0:
+                        mixed = mixed / (max_val * 1.05)  # Add 5% headroom
+                        print(f"[MUSIC] Normalized audio (peak was {max_val:.2f})")
+                    
+                    # Save mixed audio
+                    sf.write(mixed_audio, mixed, sr_voice, subtype='PCM_16')
+                    print(f"[MUSIC] Audio mixed successfully")
+                    
+                except ImportError:
+                    print(f"[MUSIC] soundfile not available, using pydub...")
+                    try:
+                        from pydub import AudioSegment
+                        
+                        # Load audio files
+                        voice = AudioSegment.from_wav(original_audio)
+                        music = AudioSegment.from_wav(music_wav)
+                        
+                        # Make sure music is same duration as voice
+                        if len(music) < len(voice):
+                            # Loop music to fill duration
+                            loops_needed = (len(voice) // len(music)) + 1
+                            music = music * loops_needed
+                        
+                        # Trim music to exact video duration
+                        music = music[:len(voice)]
+
+                        # --- DYNAMIC VOLUME CALCULATION (pydub) ---
+                        print("[MUSIC] Analyzing audio levels for dynamic volume adjustment (pydub)...")
+                        rms_voice = voice.rms
+                        rms_music = music.rms
+
+                        final_db_change = -120  # Effectively silent
+                        if rms_music > 0:
+                            target_rms_music = rms_voice * 0.50
+                            dynamic_volume = target_rms_music / rms_music
+                            max_volume = self.config.bg_music_volume
+                            final_volume = min(dynamic_volume, max_volume)
+
+                            # Convert linear volume to dB change for pydub
+                            if final_volume > 1e-9: # Epsilon for silence
+                                final_db_change = 20 * np.log10(final_volume)
+
+                        print(f"[MUSIC] Voice RMS: {rms_voice}, Music RMS: {rms_music}")
+                        print(f"[MUSIC] Dynamic volume: {final_volume:.4f} -> dB change: {final_db_change:.2f} dB")
+                        # --- END DYNAMIC VOLUME ---
+                        
+                        # Mix: lower the music volume and overlay
+                        adjusted_music = music + final_db_change
+                        mixed = voice.overlay(adjusted_music)
+                        
+                        # Export mixed audio
+                        mixed.export(mixed_audio, format="wav")
+                        print(f"[MUSIC] Audio mixed successfully")
+                        
+                    except ImportError:
+                        print(f"[MUSIC] ERROR: soundfile and pydub both not available")
+                        print(f"[MUSIC] Install with: pip install soundfile")
+                        shutil.copy(video_path, output_path)
+                        return True
                 
-                # Use gentler ducking parameters to avoid artifacts
-                if music_delay_ms > 0:
-                    # With delay - proper audio sync
-                    filter_complex = (
-                        f"[1:a]adelay={music_delay_ms}|{music_delay_ms}[music_delayed];"
-                        f"[music_delayed]volume={high_vol}[music_vol];"
-                        f"[music_vol][0:a]sidechaincompress=threshold=0.003:ratio=4:attack={attack}:release={release}:makeup=5[ducked];"
-                        f"[0:a][ducked]amix=inputs=2:duration=first[aout]"
-                    )
-                else:
-                    # Without delay
-                    filter_complex = (
-                        f"[1:a]volume={high_vol}[music_vol];"
-                        f"[music_vol][0:a]sidechaincompress=threshold=0.003:ratio=4:attack={attack}:release={release}:makeup=5[ducked];"
-                        f"[0:a][ducked]amix=inputs=2:duration=first[aout]"
-                    )
-                print(f"[MUSIC] Audio ducking enabled (volume: {high_vol})")
-            else:
-                # Simple volume mix without ducking - cleaner audio
-                if music_delay_ms > 0:
-                    filter_complex = (
-                        f"[1:a]adelay={music_delay_ms}|{music_delay_ms}[music_delayed];"
-                        f"[music_delayed]volume={bg_volume}[music];"
-                        f"[0:a][music]amix=inputs=2:duration=first[aout]"
-                    )
-                else:
-                    filter_complex = (
-                        f"[1:a]volume={bg_volume}[music];"
-                        f"[0:a][music]amix=inputs=2:duration=first[aout]"
-                    )
+                # Step 4: Remux video with mixed audio (video + mixed audio only)
+                print(f"[MUSIC] Remuxing video with mixed audio...")
+                
+                # Just copy video and use mixed audio
+                remux_cmd = [
+                    ffmpeg_cmd, "-y",
+                    "-i", video_path,  # Get video
+                    "-i", mixed_audio,  # Get mixed audio
+                    "-c:v", "copy",  # Copy video stream as-is
+                    "-c:a", "aac",  # Re-encode audio to AAC
+                    "-b:a", "192k",  # Good quality
+                    "-ac", "2",  # Stereo
+                    "-ar", "44100",  # Match our mix
+                    "-map", "0:v:0",  # Take video from original
+                    "-map", "1:a:0",  # Take audio from mixed
+                    "-shortest",  # Stop when shortest ends
+                    output_path
+                ]
+                
+                result = subprocess.run(remux_cmd, capture_output=True, text=True)
+                
+                if result.returncode != 0:
+                    print(f"[MUSIC] FFmpeg remux failed:")
+                    print(result.stderr)
+                    print(f"[MUSIC] Falling back to original video")
+                    shutil.copy(video_path, output_path)
+                    return True
+                
+                if not os.path.exists(output_path):
+                    print(f"[MUSIC] Output file not created")
+                    shutil.copy(video_path, output_path)
+                    return True
+                
+                print(f"[MUSIC] Successfully added background music!")
+                return True
             
-            # Build FFmpeg command with better audio quality settings
-            cmd = [ffmpeg_cmd, "-y"]
-            
-            # Input 0: Video with voice
-            cmd.extend(["-i", video_path])
-            
-            # Input 1: Music
-            if music_seek_time > 0:
-                cmd.extend(["-ss", f"{music_seek_time:.3f}"])
-            
-            # Only loop if we have video duration, otherwise don't loop (safer)
-            if video_duration:
-                cmd.extend(["-stream_loop", "1"])  # Loop once, not infinite (safer)
-            
-            cmd.extend(["-i", music_path])
-            
-            # Apply filter and output with high quality audio
-            cmd.extend([
-                "-filter_complex", filter_complex,
-                "-map", "0:v",  # Use video from first input
-                "-map", "[aout]",  # Use mixed audio
-                "-c:v", "copy",  # Copy video codec (no re-encoding)
-                "-c:a", "libmp3lame",  # Use MP3 for better compatibility and less artifacts
-                "-q:a", "5",  # Variable bitrate quality (5 = ~192kbps)
-                "-ac", "2",  # Ensure stereo
-                "-ar", "48000",  # Standard sample rate
-                "-async", "1",  # Audio sync
-                output_path
-            ])
-            
-            print(f"[MUSIC] Mixing background music with high-quality audio...")
-            result = subprocess.run(cmd, check=True, capture_output=True)
-            
-            print(f"[MUSIC] Successfully added background music with smart sync")
-            return True
-            
-        except subprocess.CalledProcessError as e:
-            print(f"[MUSIC] FFmpeg error: {e.stderr.decode() if e.stderr else str(e)}")
-            return False
         except Exception as e:
-            print(f"[MUSIC] Error adding background music: {e}")
+            print(f"[MUSIC] Error: {e}")
             import traceback
             traceback.print_exc()
-            return False
+            print(f"[MUSIC] Falling back to original video")
+            shutil.copy(video_path, output_path)
+            return True
     
     def _cleanup_word_images(self):
         """Delete all images from the word_images folder."""
@@ -1860,7 +2318,11 @@ class PodcastToShortsPipeline:
             hook_max_width = int(frame_width * self.config.hook_width_ratio)
             hook_renderer = HookRenderer(
                 font_path=self.config.font_path,
-                font_size=self.config.hook_font_size
+                font_size=self.config.hook_font_size,
+                use_mono_color=self.config.use_mono_color,
+                mono_color=self.config.mono_color,
+                primary_color=self.config.primary_color,
+                secondary_color=self.config.secondary_color
             )
             hook_image = hook_renderer.create_hook_image(
                 hook_result,
@@ -1908,7 +2370,11 @@ class PodcastToShortsPipeline:
         # Initialize hook renderer for overlay
         hook_renderer_overlay = HookRenderer(
             font_path=self.config.font_path,
-            font_size=self.config.hook_font_size
+            font_size=self.config.hook_font_size,
+            use_mono_color=self.config.use_mono_color,
+            mono_color=self.config.mono_color,
+            primary_color=self.config.primary_color,
+            secondary_color=self.config.secondary_color
         ) if hook_image is not None else None
         
         frame_count = 0
@@ -2162,6 +2628,11 @@ def main():
         help="Show debug overlays during face tracking"
     )
     parser.add_argument(
+        "--skip-face-tracking", "--skip-face",
+        action="store_true",
+        help="Skip face tracking and use a random cached *_vertical.mp4 video from the temp folder"
+    )
+    parser.add_argument(
         "--font",
         type=str,
         default="BebasNeue-Regular.ttf",
@@ -2200,7 +2671,13 @@ def main():
         "--youtube-secret",
         type=str,
         default="virtualrealm_ytdata_api_client_secret.json",
-        help="Path to YouTube OAuth client secret file"
+        help="Path to YouTube OAuth client secret file (fallback if secrets folder is empty)"
+    )
+    parser.add_argument(
+        "--youtube-secrets-folder",
+        type=str,
+        default="secrets",
+        help="Folder containing multiple YouTube secret JSON files for different channels (default: secrets)"
     )
     parser.add_argument(
         "--no-discord",
@@ -2239,8 +2716,8 @@ def main():
     parser.add_argument(
         "--music-volume",
         type=float,
-        default=0.35,
-        help="Background music volume 0.0-1.0 (default: 0.35)"
+        default=0.04,
+        help="Background music volume 0.0-1.0 (default: 0.09)"
     )
     parser.add_argument(
         "--no-discord-music",
@@ -2276,6 +2753,26 @@ def main():
         help="Music volume at climax/drops when ducking (default: 0.6)"
     )
     
+    # Color customization
+    parser.add_argument(
+        "--mono-colour",
+        type=str,
+        default=None,
+        help="Use single hex color for all highlights (e.g., FFFF00 or #FFFF00)"
+    )
+    parser.add_argument(
+        "--primary-colour",
+        type=str,
+        default=None,
+        help="Primary color for subtitles and hook highlights (hex, e.g., FFFF00)"
+    )
+    parser.add_argument(
+        "--secondary-colour",
+        type=str,
+        default=None,
+        help="Secondary color for hook object words (hex, e.g., B464FF)"
+    )
+    
     args = parser.parse_args()
     
     # Create config
@@ -2287,6 +2784,7 @@ def main():
     config.enable_youtube_upload = args.upload
     config.youtube_privacy = args.privacy
     config.youtube_client_secret = args.youtube_secret
+    config.youtube_secrets_folder = args.youtube_secrets_folder
     config.use_discord_for_hooks = not args.no_discord
     config.discord_hook_timeout = args.discord_timeout
     config.enable_instagram_upload = args.upload_ig
@@ -2301,11 +2799,37 @@ def main():
     config.ducking_low_volume = args.ducking_low
     config.ducking_high_volume = args.ducking_high
     
+    # Apply color configuration
+    if args.mono_colour:
+        # Mono color mode - use single color for all highlights
+        config.use_mono_color = True
+        config.mono_color = hex_to_rgb(args.mono_colour)
+        print(f"[INFO] Using mono color mode: {config.mono_color}")
+    elif args.primary_colour or args.secondary_colour:
+        # Primary/secondary color mode
+        if args.primary_colour:
+            config.primary_color = hex_to_rgb(args.primary_colour)
+            print(f"[INFO] Primary color set to: {config.primary_color}")
+        if args.secondary_colour:
+            config.secondary_color = hex_to_rgb(args.secondary_colour)
+            print(f"[INFO] Secondary color set to: {config.secondary_color}")
+    else:
+        # Use defaults
+        print(f"[INFO] Using default colors (Primary: Yellow, Secondary: Purple)")
+    config.default_bg_music = args.music_file
+    config.bg_music_volume = args.music_volume
+    config.use_discord_for_music = not args.no_discord_music
+    config.enable_smart_sync = not args.no_smart_sync
+    config.smart_sync_voice_peak_time = args.voice_peak
+    config.enable_audio_ducking = not args.no_ducking
+    config.ducking_low_volume = args.ducking_low
+    config.ducking_high_volume = args.ducking_high
+    
     # Create and run pipeline
     pipeline = PodcastToShortsPipeline(config)
     
     try:
-        pipeline.process(input_video=args.input, debug=args.debug)
+        pipeline.process(input_video=args.input, debug=args.debug, skip_face_tracking=args.skip_face_tracking)
     except KeyboardInterrupt:
         print("\n[INFO] Processing interrupted by user")
     except Exception as e:

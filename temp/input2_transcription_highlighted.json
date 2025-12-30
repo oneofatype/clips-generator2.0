@@ -20,7 +20,7 @@
       "start": 440,
       "end": 640,
       "confidence": 0.9995117,
-      "highlight": true
+      "highlight": false
     },
     {
       "text": "or",
@@ -54,8 +54,8 @@
       "text": "hire",
       "start": 1400,
       "end": 1640,
-      "confidence": 0.8178711,
-      "highlight": false
+      "confidence": 0.8249512,
+      "highlight": true
     },
     {
       "text": "a",
@@ -89,14 +89,14 @@
       "text": "that",
       "start": 2480,
       "end": 2880,
-      "confidence": 0.72998047,
+      "confidence": 0.75390625,
       "highlight": false
     },
     {
       "text": "with",
       "start": 2960,
       "end": 3240,
-      "confidence": 0.94921875,
+      "confidence": 0.94677734,
       "highlight": false
     },
     {
@@ -125,13 +125,13 @@
       "start": 3640,
       "end": 3880,
       "confidence": 0.99902344,
-      "highlight": false
+      "highlight": true
     },
     {
       "text": "experiences",
       "start": 3880,
       "end": 4720,
-      "confidence": 0.9980469,
+      "confidence": 0.99780273,
       "highlight": true
     },
     {
@@ -160,7 +160,7 @@
       "start": 5760,
       "end": 6000,
       "confidence": 0.8487956,
-      "highlight": false
+      "highlight": true
     },
     {
       "text": "a",
@@ -229,35 +229,35 @@
       "text": "thing",
       "start": 8800,
       "end": 9080,
-      "confidence": 0.9970703,
+      "confidence": 0.99658203,
       "highlight": false
     },
     {
       "text": "Then",
       "start": 9080,
       "end": 9440,
-      "confidence": 0.55322266,
+      "confidence": 0.55371094,
       "highlight": false
     },
     {
       "text": "they",
       "start": 9520,
       "end": 9840,
-      "confidence": 0.9941406,
+      "confidence": 0.99365234,
       "highlight": false
     },
     {
       "text": "join",
       "start": 9840,
       "end": 10160,
-      "confidence": 0.79541016,
+      "confidence": 0.7878418,
       "highlight": false
     },
     {
       "text": "They",
       "start": 10160,
       "end": 10400,
-      "confidence": 0.42138672,
+      "confidence": 0.43847656,
       "highlight": false
     },
     {
@@ -278,7 +278,7 @@
       "text": "like",
       "start": 10880,
       "end": 11080,
-      "confidence": 0.7753906,
+      "confidence": 0.75341797,
       "highlight": false
     },
     {
@@ -306,7 +306,7 @@
       "text": "nothing",
       "start": 11680,
       "end": 12080,
-      "confidence": 0.95214844,
+      "confidence": 0.9465332,
       "highlight": true
     },
     {
@@ -320,7 +320,7 @@
       "text": "you're",
       "start": 12360,
       "end": 12560,
-      "confidence": 0.81966144,
+      "confidence": 0.8208008,
       "highlight": false
     },
     {
@@ -383,7 +383,7 @@
       "text": "you",
       "start": 14560,
       "end": 14840,
-      "confidence": 0.5917969,
+      "confidence": 0.62158203,
       "highlight": false
     },
     {
@@ -404,7 +404,7 @@
       "text": "blah",
       "start": 15280,
       "end": 15520,
-      "confidence": 0.9926758,
+      "confidence": 0.9921875,
       "highlight": false
     },
     {
@@ -572,7 +572,7 @@
       "text": "ultimately",
       "start": 21840,
       "end": 22480,
-      "confidence": 0.84873044,
+      "confidence": 0.8461914,
       "highlight": true
     },
     {
@@ -621,7 +621,7 @@
       "text": "the",
       "start": 24280,
       "end": 24440,
-      "confidence": 0.97509766,
+      "confidence": 0.9760742,
       "highlight": false
     },
     {
@@ -642,14 +642,14 @@
       "text": "It's",
       "start": 25160,
       "end": 25320,
-      "confidence": 0.8465169,
+      "confidence": 0.8357747,
       "highlight": false
     },
     {
       "text": "about",
       "start": 25320,
       "end": 25520,
-      "confidence": 0.9892578,
+      "confidence": 0.98876953,
       "highlight": false
     },
     {
@@ -684,7 +684,7 @@
       "text": "about",
       "start": 27080,
       "end": 27360,
-      "confidence": 0.9941406,
+      "confidence": 0.99365234,
       "highlight": false
     },
     {
@@ -719,7 +719,7 @@
       "text": "the",
       "start": 29200,
       "end": 29400,
-      "confidence": 0.91845703,
+      "confidence": 0.9145508,
       "highlight": false
     },
     {
@@ -727,13 +727,13 @@
       "start": 29400,
       "end": 29640,
       "confidence": 0.95043945,
-      "highlight": false
+      "highlight": true
     },
     {
       "text": "in",
       "start": 29640,
       "end": 29800,
-      "confidence": 0.5283203,
+      "confidence": 0.5439453,
       "highlight": false
     },
     {
@@ -748,7 +748,7 @@
       "start": 29960,
       "end": 30200,
       "confidence": 0.9980469,
-      "highlight": false
+      "highlight": true
     },
     {
       "text": "about",
@@ -775,7 +775,7 @@
       "text": "And",
       "start": 31120,
       "end": 31440,
-      "confidence": 0.9707031,
+      "confidence": 0.96875,
       "highlight": false
     },
     {
@@ -839,21 +839,21 @@
       "start": 34060,
       "end": 34740,
       "confidence": 0.99902344,
-      "highlight": false
+      "highlight": true
     },
     {
       "text": "determined",
       "start": 34740,
       "end": 35580,
       "confidence": 0.9663086,
-      "highlight": false
+      "highlight": true
     },
     {
       "text": "optimistic",
       "start": 35580,
       "end": 36340,
-      "confidence": 0.9050293,
-      "highlight": false
+      "confidence": 0.897583,
+      "highlight": true
     },
     {
       "text": "people",
